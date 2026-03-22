@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+{% block title %}Workouts & Activities — Viora{% endblock %}
+{% block content %}
+<div class="container page-wrap">
+
+  <div class="page-hdr">
+    <div class="page-title">🏋️ Workouts & Activities</div>
+    <div class="page-sub">Offline activities matched to your mood — tap any card for a live animated demo</div>
+  </div>
+
+  <!-- Category filters -->
+  <div class="flex gap-8 mb-24" style="flex-wrap:wrap;">
+    <button class="filter-btn active" onclick="filterWorkouts('all', this)">All</button>
+    <button class="filter-btn" onclick="filterWorkouts('calm', this)">🧘 Calm</button>
+    <button class="filter-btn" onclick="filterWorkouts('energy', this)">⚡ Energy</button>
+    <button class="filter-btn" onclick="filterWorkouts('mind', this)">🧠 Mind</button>
+    <button class="filter-btn" onclick="filterWorkouts('body', this)">💪 Body</button>
+  </div>
+
+  <div id="workoutGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:20px;">
+
+    <a href="/workout/breathing/" class="workout-gallery-card" data-cat="calm">
+      <div class="wg-icon">🫁</div>
+      <div class="wg-title">Box Breathing</div>
+      <div class="wg-mood">😰 Anxious · 😠 Angry</div>
+      <div class="wg-desc">4-4-4-4 breathing pattern that activates your parasympathetic nervous system within minutes.</div>
+      <div class="wg-footer">
+        <span class="wg-dur">⏱ 5 min</span>
+        <span class="wg-tag calm">Calm</span>
+      </div>
+      <div class="wg-demo-hint">▶ Live animated demo</div>
+    </a>
+
+    <a href="/workout/meditation/" class="workout-gallery-card" data-cat="calm">
+      <div class="wg-icon">🧘</div>
+      <div class="wg-title">Body Scan Meditation</div>
+      <div class="wg-mood">😰 Anxious · 😠 Angry · 😢 Sad</div>
+      <div class="wg-desc">Follow the living wave and release tension from your body one zone at a time.</div>
+      <div class="wg-footer">
+        <span class="wg-dur">⏱ 8 min</span>
+        <span class="wg-tag calm">Calm</span>
+      </div>
+      <div class="wg-demo-hint">▶ Live wave animation</div>
+    </a>
+
+    <a href="/workout/hiit/" class="workout-gallery-card" data-cat="energy body">
+      <div class="wg-icon">⚡</div>
+      <div class="wg-title">Energy Burst HIIT</div>
+      <div class="wg-mood">😠 Angry · 😑 Bored · ⚡ Energetic</div>
+      <div class="wg-desc">5-exercise circuit with a live countdown timer. Releases natural dopamine — better than a scroll.</div>
+      <div class="wg-footer">
+        <span class="wg-dur">⏱ 10 min</span>
+        <span class="wg-tag energy">Energy</span>
+      </div>
+      <div class="wg-demo-hint">▶ Live HIIT timer</div>
+    </a>
+
+    <a href="/workout/stretching/" class="workout-gallery-card" data-cat="body calm">
+      <div class="wg-icon">🙆</div>
+      <div class="wg-title">Desk Stretch Sequence</div>
+      <div class="wg-mood">😴 Tired · 😐 Neutral · 😰 Anxious</div>
+      <div class="wg-desc">Auto-guided stretch routine that walks you through 5 exercises with step timers.</div>
+      <div class="wg-footer">
+        <span class="wg-dur">⏱ 7 min</span>
+        <span class="wg-tag body">Body</span>
+      </div>
+      <div class="wg-demo-hint">▶ Auto-guided demo</div>
+    </a>
+
+    <a href="/workout/walk/" class="workout-gallery-card" data-cat="calm body">
+      <div class="wg-icon">🚶</div>
+      <div class="wg-title">Mindful Walk</div>
+      <div class="wg-mood">😢 Sad · 😑 Bored · 😴 Tired</div>
+      <div class="wg-desc">Leave your phone behind. A 10-minute outdoor walk resets your nervous system better than any app.</div>
+      <div class="wg-footer">
+        <span class="wg-dur">⏱ 10-15 min</span>
+        <span class="wg-tag calm">Calm</span>
+      </div>
+      <div class="wg-demo-hint">▶ Step-by-step guide</div>
+    </a>
+
+    <a href="/workout/journaling/" class="workout-gallery-card" data-cat="mind">
+      <div class="wg-icon">📔</div>
+      <div class="wg-title">Structured Journaling</div>
+      <div class="wg-mood">😢 Sad · 😐 Neutral · 😴 Tired</div>
+      <div class="wg-desc">4-prompt journal framework that processes emotions offline — reducing the need for social validation.</div>
+      <div class="wg-footer">
+        <span class="wg-dur">⏱ 10 min</span>
+        <span class="wg-tag mind">Mind</span>
+      </div>
+      <div class="wg-demo-hint">▶ Step-by-step guide</div>
+    </a>
+
+    <a href="/workout/learning/" class="workout-gallery-card" data-cat="mind energy">
+      <div class="wg-icon">🎓</div>
+      <div class="wg-title">Micro-Learning Session</div>
+      <div class="wg-mood">😑 Bored · 😐 Neutral · ⚡ Energetic</div>
+      <div class="wg-desc">15 minutes of intentional learning gives your brain the stimulation it craves without the scroll.</div>
+      <div class="wg-footer">
+        <span class="wg-dur">⏱ 15 min</span>
+        <span class="wg-tag mind">Mind</span>
+      </div>
+      <div class="wg-demo-hint">▶ Step-by-step guide</div>
+    </a>
+
+    <a href="/workout/cold_water/" class="workout-gallery-card" data-cat="energy calm">
+      <div class="wg-icon">💧</div>
+      <div class="wg-title">Cold Water Reset</div>
+      <div class="wg-mood">😠 Angry · 😴 Tired · 😰 Anxious</div>
+      <div class="wg-desc">2-minute pattern interrupt that resets your nervous system using cold water and breathing.</div>
+      <div class="wg-footer">
+        <span class="wg-dur">⏱ 2 min</span>
+        <span class="wg-tag energy">Energy</span>
+      </div>
+      <div class="wg-demo-hint">▶ Step-by-step guide</div>
+    </a>
+
+  </div>
+
+  <!-- Mood guide section -->
+  <div class="card mt-32 anim-in" style="margin-top:32px;">
+    <div class="section-label">🎯 Which activity for which mood?</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;">
+      <div class="mood-activity-guide">
+        <div class="mag-mood">😰 Anxious</div>
+        <div class="mag-acts">Box Breathing · Meditation · Cold Water</div>
+      </div>
+      <div class="mood-activity-guide">
+        <div class="mag-mood">😠 Angry</div>
+        <div class="mag-acts">HIIT · Box Breathing · Cold Water</div>
+      </div>
+      <div class="mood-activity-guide">
+        <div class="mag-mood">😢 Sad</div>
+        <div class="mag-acts">Journaling · Mindful Walk · Cold Water</div>
+      </div>
+      <div class="mood-activity-guide">
+        <div class="mag-mood">😑 Bored</div>
+        <div class="mag-acts">Micro-Learning · HIIT · Mindful Walk</div>
+      </div>
+      <div class="mood-activity-guide">
+        <div class="mag-mood">😴 Tired</div>
+        <div class="mag-acts">Desk Stretching · Cold Water · Meditation</div>
+      </div>
+      <div class="mood-activity-guide">
+        <div class="mag-mood">⚡ Energetic</div>
+        <div class="mag-acts">HIIT · Micro-Learning · Journaling</div>
+      </div>
+      <div class="mood-activity-guide">
+        <div class="mag-mood">😊 Happy</div>
+        <div class="mag-acts">Micro-Learning · HIIT · Journaling</div>
+      </div>
+      <div class="mood-activity-guide">
+        <div class="mag-mood">😐 Neutral</div>
+        <div class="mag-acts">Meditation · Mindful Walk · Micro-Learning</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterWorkouts(cat, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.workout-gallery-card').forEach(card => {
+    if (cat === 'all' || card.dataset.cat.includes(cat)) {
+      card.style.display = '';
+    } else {
+      card.style.display = 'none';
+    }
+  });
+}
+</script>
+{% endblock %}

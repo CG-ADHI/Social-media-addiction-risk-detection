@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Create Account — Viora{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <div class="auth-box anim-in">
+    <div class="auth-brand">
+      <div class="nav-brand-icon">M</div>
+      Viora
+    </div>
+    <h2 class="auth-title">Start your journey</h2>
+    <p class="auth-sub">Free forever · Private · Takes 30 seconds</p>
+
+    <form method="post">
+      {% csrf_token %}
+      {% for field in form %}
+      <div class="form-group">
+        <label class="form-label">{{ field.label }}</label>
+        {{ field }}
+        {% if field.errors %}
+        <p class="form-error">{{ field.errors.0 }}</p>
+        {% endif %}
+        {% if field.help_text %}
+        <p style="color:var(--text3);font-size:0.72rem;margin-top:4px;">{{ field.help_text }}</p>
+        {% endif %}
+      </div>
+      {% endfor %}
+      <button type="submit" class="btn btn-primary btn-full">
+        🚀 Create Account
+      </button>
+    </form>
+
+    <div class="divider"></div>
+    <p style="text-align:center;font-size:0.85rem;color:var(--text2);">
+      Already have an account? <a href="/login/" class="auth-link">Sign in</a>
+    </p>
+  </div>
+</div>
+{% endblock %}

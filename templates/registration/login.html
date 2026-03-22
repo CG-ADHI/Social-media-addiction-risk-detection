@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Sign In — MindGuard{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <div class="auth-box anim-in">
+    <div class="auth-brand">
+      <div class="nav-brand-icon">M</div>
+      MindGuard
+    </div>
+    <h2 class="auth-title">Welcome back</h2>
+    <p class="auth-sub">Continue your wellness journey</p>
+
+    {% if error %}
+    <div class="alert alert-high mb-16">
+      <span class="alert-icon">⚠️</span>
+      <div class="alert-body"><div class="alert-text">{{ error }}</div></div>
+    </div>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-group">
+        <label class="form-label">Username</label>
+        <input type="text" name="username" placeholder="Your username" autofocus>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input type="password" name="password" placeholder="Your password">
+      </div>
+      <button type="submit" class="btn btn-primary btn-full" style="margin-top:8px;">
+        Sign In →
+      </button>
+    </form>
+
+    <div class="divider"></div>
+    <p style="text-align:center;font-size:0.85rem;color:var(--text2);">
+      New here? <a href="/register/" class="auth-link">Create account</a>
+    </p>
+  </div>
+</div>
+{% endblock %}

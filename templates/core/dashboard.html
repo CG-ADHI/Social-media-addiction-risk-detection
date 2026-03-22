@@ -1,0 +1,271 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard — Viora{% endblock %}
+{% block content %}
+<div class="container page-wrap">
+
+  <!-- Header -->
+  <div class="page-hdr">
+    <div class="flex-sb" style="flex-wrap:wrap;gap:12px;">
+      <div>
+        <div class="page-title">Dashboard</div>
+        <div class="page-sub">{{ today|date:"l, F j, Y" }} · Hey {{ user.username }} 👋</div>
+      </div>
+      <div class="flex gap-12" style="align-items:center;flex-wrap:wrap;">
+        {% if profile.streak_days > 0 %}
+        <div class="flex-c gap-8" style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);padding:8px 16px;border-radius:100px;">
+          <span style="font-size:1.2rem;">🔥</span>
+          <span style="font-family:var(--mono);font-weight:700;color:var(--yellow);">{{ profile.streak_days }}d Streak</span>
+        </div>
+        {% endif %}
+        <div class="flex-c gap-8" style="background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);padding:8px 16px;border-radius:100px;">
+          <span>⚡</span>
+          <span style="font-family:var(--mono);font-weight:700;color:var(--primary);">{{ profile.xp }} XP</span>
+        </div>
+        {% if not today_checkin %}
+        <a href="/checkin/" class="btn btn-primary">✍️ Check In Now</a>
+        {% else %}
+        <span class="risk-pill risk-{{ today_checkin.risk_level }}">Today: {{ today_checkin.risk_level|title }}</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- XP Bar -->
+  <div class="card card-accent mb-20 anim-in">
+    <div class="flex-sb mb-12">
+      <div class="flex-c gap-12">
+        <span style="font-size:1.5rem;">🎮</span>
+        <div>
+          <div style="font-weight:800;font-size:1rem;">Level {{ level_info.level }} <span class="grad-text">Wellness {% if level_info.level < 3 %}Initiate{% elif level_info.level < 6 %}Warrior{% elif level_info.level < 9 %}Master{% else %}Legend{% endif %}</span></div>
+          <div class="fs-xs text-muted">{{ level_info.current_xp }} / {{ level_info.needed_xp }} XP to next level</div>
+        </div>
+      </div>
+      <div class="mono-text text-primary" style="font-size:0.85rem;font-weight:700;">Lv.{{ level_info.level }}</div>
+    </div>
+    <div class="xp-bar-bg"><div class="xp-bar-fill" id="xpBar" style="width:0%"></div></div>
+    <div class="xp-labels"><span>Level {{ level_info.level }}</span><span>Level {{ level_info.level|add:1 }}</span></div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stat-grid anim-in d1">
+    <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-num" data-count="{{ total_checkins }}">0</div><div class="stat-lbl">Check-ins</div></div>
+    <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-num" data-count="{{ low_risk_days }}">0</div><div class="stat-lbl">Low Risk Days</div></div>
+    <div class="stat-card"><div class="stat-icon">🔥</div><div class="stat-num" data-count="{{ profile.streak_days }}">0</div><div class="stat-lbl">Streak</div></div>
+    <div class="stat-card"><div class="stat-icon">💎</div><div class="stat-num" data-count="{{ profile.longest_streak }}">0</div><div class="stat-lbl">Best Streak</div></div>
+  </div>
+
+  <!-- Alerts -->
+  {% if usage_trend_msg %}
+  <div class="alert alert-info anim-in mb-20"><span class="alert-icon">💡</span><div class="alert-body"><div class="alert-text">{{ usage_trend_msg }}</div></div></div>
+  {% endif %}
+  {% if today_checkin %}
+  <div class="alert alert-{{ today_checkin.risk_level }} anim-in mb-20">
+    <span class="alert-icon">{% if today_checkin.risk_level == 'high' %}⚠️{% elif today_checkin.risk_level == 'medium' %}⚡{% else %}✅{% endif %}</span>
+    <div class="alert-body"><div class="alert-title">Today: {{ today_checkin.risk_level|title }} Risk ({{ today_checkin.risk_score|floatformat:0 }}/100)</div><div class="alert-text">{{ today_checkin.risk_explanation }}</div></div>
+  </div>
+  {% endif %}
+
+  <div class="dash-grid">
+    <div class="dash-main">
+
+      <!-- Charts -->
+      <div class="card anim-in d1"><div class="section-label">Addiction Risk — 14 Days</div><div class="chart-box" style="height:220px;"><canvas id="riskChart"></canvas></div></div>
+      <div class="grid-2">
+        <div class="card anim-in d2"><div class="section-label">Mood Trend</div><div class="chart-box" style="height:180px;"><canvas id="moodChart"></canvas></div></div>
+        <div class="card anim-in d3"><div class="section-label">Screen Time (hrs)</div><div class="chart-box" style="height:180px;"><canvas id="screenChart"></canvas></div></div>
+      </div>
+      <div class="card anim-in d4"><div class="section-label">Productivity Score</div><div class="chart-box" style="height:180px;"><canvas id="prodChart"></canvas></div></div>
+
+      <!-- Emotional Insights -->
+      {% if emotional_insights %}
+      <div class="card anim-in">
+        <div class="section-label">🔬 Emotional Insights</div>
+        {% for ins in emotional_insights %}
+        <div class="insight-card {{ ins.color }}">
+          <div class="insight-icon">{{ ins.icon }}</div>
+          <div><div class="insight-title">{{ ins.title }}</div><div class="insight-text">{{ ins.text }}</div></div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- Recent history -->
+      {% if recent %}
+      <div class="card anim-in">
+        <div class="section-between"><div class="section-label" style="margin:0;">Recent Activity</div><a href="/history/" class="btn btn-ghost btn-sm">View All</a></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Risk</th><th>Mood</th><th>Screen</th><th>Prod.</th></tr></thead>
+            <tbody>
+              {% for c in recent %}
+              <tr>
+                <td style="font-weight:700;">{{ c.date|date:"M j" }}</td>
+                <td><span class="risk-pill risk-{{ c.risk_level }}">{{ c.risk_score|floatformat:0 }}</span></td>
+                <td>{% if c.mood_label == 'happy' %}😊{% elif c.mood_label == 'sad' %}😢{% elif c.mood_label == 'anxious' %}😰{% elif c.mood_label == 'angry' %}😠{% elif c.mood_label == 'energetic' %}⚡{% elif c.mood_label == 'tired' %}😴{% elif c.mood_label == 'bored' %}😑{% else %}😐{% endif %} {{ c.mood_label|title }}</td>
+                <td class="mono-text"style="color:{% if c.screen_time_hours > 6 %}var(--red){% elif c.screen_time_hours > 3 %}var(--yellow){% else %}var(--green){% endif %};">{{ c.screen_time_hours }}h</td>
+                <td class="mono-text grad-text">{{ c.productivity_score|floatformat:0 }}%</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Sidebar -->
+    <div class="dash-side">
+
+      <!-- Focus Tasks -->
+      <div class="card anim-in d1">
+        <div class="section-between mb-16"><div class="section-label" style="margin:0;">🎯 Today's Focus</div><span class="fs-xs text-muted mono-text">Max 3</span></div>
+        <div class="task-list" id="taskList">
+          {% for t in today_tasks %}
+          <div class="task-item {% if t.status == 'done' %}done{% endif %}" id="task-{{ t.id }}">
+            <div class="task-check {% if t.status == 'done' %}checked{% endif %}" onclick="toggleTask({{ t.id }}, this)">{% if t.status == 'done' %}✓{% endif %}</div>
+            <div class="priority-dot p-{{ t.priority }}"></div>
+            <div class="task-text {% if t.status == 'done' %}done-text{% endif %}">{{ t.title }}</div>
+            <div class="task-del" onclick="deleteTask({{ t.id }}, this)">✕</div>
+          </div>
+          {% empty %}
+          <div id="emptyTasks" style="text-align:center;padding:20px;color:var(--text3);">
+            <div style="font-size:2rem;margin-bottom:8px;">🎯</div>
+            <p class="fs-sm">Add up to 3 focus tasks</p>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="task-input-row" id="taskInputRow" {% if today_tasks.count >= 3 %}style="display:none"{% endif %}>
+          <input type="text" id="newTaskInput" placeholder="Add a task..." style="flex:1;">
+          <select id="taskPriority" style="width:90px;padding:10px 6px;">
+            <option value="high">🔴 High</option>
+            <option value="medium" selected>🟡 Med</option>
+            <option value="low">🟢 Low</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="addTask()">Add</button>
+        </div>
+      </div>
+
+      <!-- Pomodoro -->
+      <div class="card anim-in d2">
+        <div class="section-label">⏱ Focus Timer</div>
+        <div class="pomo-wrap">
+          <div class="pomo-label" id="pomoState">Ready to focus?</div>
+          <div class="pomo-display" id="pomoTimer">25:00</div>
+          <div class="pomo-controls">
+            <button class="btn btn-primary btn-sm" id="pomoStart" onclick="startPomo()">▶ Start</button>
+            <button class="btn btn-ghost btn-sm" onclick="resetPomo()">↺ Reset</button>
+          </div>
+          <div class="flex gap-8">
+            <button class="btn btn-surface btn-sm" onclick="setPomoTime(25)">25m</button>
+            <button class="btn btn-surface btn-sm" onclick="setPomoTime(15)">15m</button>
+            <button class="btn btn-surface btn-sm" onclick="setPomoTime(5)">5m Break</button>
+          </div>
+          <div class="fs-xs text-muted">Sessions today: <span id="sessCount" class="grad-text mono-text fw-800">{{ today_checkin.focus_sessions|default:0 }}</span></div>
+        </div>
+      </div>
+
+      <!-- Check-in CTA -->
+      {% if not today_checkin %}
+      <div class="card anim-in d3" style="border-color:rgba(99,102,241,0.3);background:rgba(99,102,241,0.05);">
+        <div style="text-align:center;padding:12px 0;">
+          <div style="font-size:3rem;margin-bottom:12px;" class="anim-float">🌟</div>
+          <div style="font-weight:800;font-size:1.05rem;margin-bottom:8px;">Check in today!</div>
+          <p class="fs-sm text-muted mb-16">Track your mood and keep your streak alive.</p>
+          <a href="/checkin/" class="btn btn-primary btn-full">Start Check-In</a>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Badges -->
+      <div class="card anim-in d4">
+        <div class="section-between mb-16"><div class="section-label" style="margin:0;">🏆 Badges</div><a href="/profile/" class="btn btn-ghost btn-sm">All</a></div>
+        {% if badges %}
+        <div class="badge-grid" style="grid-template-columns:repeat(4,1fr);">
+          {% for b in badges %}<div class="badge-card {{ b.rarity }}" title="{{ b.description }}"><div class="badge-icon-big">{{ b.icon }}</div><div class="badge-name">{{ b.name|truncatechars:10 }}</div></div>{% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align:center;padding:20px;color:var(--text3);"><div style="font-size:2.5rem;margin-bottom:8px;opacity:0.3;">🏆</div><p class="fs-sm">Complete check-ins to earn badges!</p></div>
+        {% endif %}
+      </div>
+
+      <!-- Notifications -->
+      <div class="card anim-in" style="background:rgba(6,182,212,0.05);border-color:rgba(6,182,212,0.2);">
+        <div class="section-label" style="color:var(--accent);">🔔 Smart Reminders</div>
+        <p class="fs-sm text-muted mb-16">Get notified for breaks, sleep nudges, and check-in reminders.</p>
+        <button class="btn btn-full" id="notifBtn" onclick="requestNotifications()" style="background:rgba(6,182,212,0.15);color:var(--accent);border:1px solid rgba(6,182,212,0.3);font-weight:700;">Enable Notifications</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const LABELS = {{ chart_labels|safe }};
+const RISK   = {{ chart_risk|safe }};
+const MOOD   = {{ chart_mood|safe }};
+const SCREEN = {{ chart_screen|safe }};
+const PROD   = {{ chart_prod|safe }};
+const XP_PCT = {{ level_info.current_xp }} / Math.max({{ level_info.needed_xp }}, 1) * 100;
+
+setTimeout(() => { document.getElementById('xpBar').style.width = Math.min(XP_PCT, 100) + '%'; }, 400);
+
+document.querySelectorAll('[data-count]').forEach(el => {
+  const target = parseInt(el.dataset.count);
+  if (!target) return;
+  let cur = 0; const step = Math.max(1, Math.ceil(target / 40));
+  const t = setInterval(() => { cur = Math.min(cur + step, target); el.textContent = cur; if (cur >= target) clearInterval(t); }, 25);
+});
+
+const C = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#4a5568', font: { size: 10 } } }, y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#4a5568', font: { size: 10 } } } } };
+
+new Chart(document.getElementById('riskChart'), { type: 'line', data: { labels: LABELS, datasets: [{ data: RISK, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', borderWidth: 2.5, fill: true, tension: 0.4, pointBackgroundColor: '#ef4444', pointRadius: 4, spanGaps: true }] }, options: { ...C, scales: { ...C.scales, y: { ...C.scales.y, min: 0, max: 100 } } } });
+new Chart(document.getElementById('moodChart'), { type: 'line', data: { labels: LABELS, datasets: [{ data: MOOD, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.08)', borderWidth: 2, fill: true, tension: 0.4, pointBackgroundColor: '#6366f1', pointRadius: 3, spanGaps: true }] }, options: { ...C, scales: { ...C.scales, y: { ...C.scales.y, min: 1, max: 10 } } } });
+new Chart(document.getElementById('screenChart'), { type: 'bar', data: { labels: LABELS, datasets: [{ data: SCREEN, backgroundColor: SCREEN.map(v => v > 6 ? 'rgba(239,68,68,0.7)' : v > 3 ? 'rgba(245,158,11,0.7)' : 'rgba(99,102,241,0.7)'), borderRadius: 5 }] }, options: C });
+new Chart(document.getElementById('prodChart'), { type: 'line', data: { labels: LABELS, datasets: [{ data: PROD, borderColor: '#06b6d4', backgroundColor: 'rgba(6,182,212,0.08)', borderWidth: 2, fill: true, tension: 0.4, pointBackgroundColor: '#06b6d4', pointRadius: 3, spanGaps: true }] }, options: { ...C, scales: { ...C.scales, y: { ...C.scales.y, min: 0, max: 100 } } } });
+
+function getCsrf() { return document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='))?.split('=')[1] || ''; }
+async function apiTask(body) { const r = await fetch('/api/tasks/', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() }, body: JSON.stringify(body) }); return r.json(); }
+
+async function addTask() {
+  const inp = document.getElementById('newTaskInput'), pri = document.getElementById('taskPriority');
+  if (!inp.value.trim()) return;
+  const d = await apiTask({ action: 'add', title: inp.value.trim(), priority: pri.value });
+  if (d.error) { alert(d.error); return; }
+  document.getElementById('emptyTasks')?.remove();
+  const list = document.getElementById('taskList');
+  const el = document.createElement('div'); el.className = 'task-item'; el.id = 'task-' + d.id;
+  el.innerHTML = `<div class="task-check" onclick="toggleTask(${d.id},this)"></div><div class="priority-dot p-${d.priority}"></div><div class="task-text">${d.title}</div><div class="task-del" onclick="deleteTask(${d.id},this)">✕</div>`;
+  list.appendChild(el); inp.value = '';
+  if (list.children.length >= 3) document.getElementById('taskInputRow').style.display = 'none';
+}
+async function toggleTask(id, btn) {
+  const d = await apiTask({ action: 'toggle', id });
+  const item = document.getElementById('task-' + id), txt = item.querySelector('.task-text');
+  if (d.status === 'done') { btn.classList.add('checked'); btn.textContent = '✓'; item.classList.add('done'); txt.classList.add('done-text'); }
+  else { btn.classList.remove('checked'); btn.textContent = ''; item.classList.remove('done'); txt.classList.remove('done-text'); }
+}
+async function deleteTask(id) { await apiTask({ action: 'delete', id }); document.getElementById('task-' + id).remove(); document.getElementById('taskInputRow').style.display = 'flex'; }
+document.getElementById('newTaskInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') addTask(); });
+
+let pomoSeconds = 25*60, pomoInterval = null, pomoRunning = false;
+function updatePomoDisplay() { const m = Math.floor(pomoSeconds/60), s = pomoSeconds%60; document.getElementById('pomoTimer').textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
+function setPomoTime(m) { if (!pomoRunning) { pomoSeconds = m*60; updatePomoDisplay(); } }
+function startPomo() {
+  if (pomoRunning) { clearInterval(pomoInterval); pomoRunning = false; document.getElementById('pomoStart').textContent = '▶ Start'; document.getElementById('pomoState').textContent = 'Paused'; return; }
+  pomoRunning = true; document.getElementById('pomoStart').textContent = '⏸ Pause'; document.getElementById('pomoState').textContent = '🔥 Focusing...';
+  pomoInterval = setInterval(() => { pomoSeconds--; updatePomoDisplay(); if (pomoSeconds <= 0) { clearInterval(pomoInterval); pomoRunning = false; document.getElementById('pomoStart').textContent = '▶ Start'; document.getElementById('pomoState').textContent = '🎉 Done!'; completeFocusSession(); if (Notification.permission==='granted') new Notification('Viora ✅', {body:'Focus session complete! Take a break.'}); } }, 1000);
+}
+function resetPomo() { clearInterval(pomoInterval); pomoRunning = false; pomoSeconds = 25*60; updatePomoDisplay(); document.getElementById('pomoStart').textContent = '▶ Start'; document.getElementById('pomoState').textContent = 'Ready to focus?'; }
+async function completeFocusSession() { const c = document.getElementById('sessCount'); if (c) c.textContent = parseInt(c.textContent||0)+1; await fetch('/api/focus-session/', {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()}, body: JSON.stringify({duration:25})}); }
+
+async function requestNotifications() {
+  const p = await Notification.requestPermission();
+  const btn = document.getElementById('notifBtn');
+  if (p === 'granted') { btn.textContent = '✅ Notifications Enabled'; btn.disabled = true; setInterval(() => new Notification('Viora 🌿', {body:'Time for a 5-minute screen break!'}), 2*60*60*1000); }
+  else { btn.textContent = '❌ Permission Denied'; }
+}
+if (Notification.permission==='granted') { document.getElementById('notifBtn').textContent = '✅ Enabled'; document.getElementById('notifBtn').disabled = true; }
+</script>
+{% endblock %}

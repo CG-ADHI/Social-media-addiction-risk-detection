@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% block title %}AI Companion — Viora{% endblock %}
+{% block content %}
+<div class="container page-wrap" style="max-width:820px;">
+
+  <div class="page-hdr">
+    <div class="page-title">AI Companion</div>
+    <div class="page-sub">Powered by Google Gemini · Empathetic · Always private</div>
+  </div>
+
+  <div class="chat-wrap anim-in">
+
+    <!-- Header -->
+    <div class="chat-header">
+      <div class="chat-ai-avatar">🧠</div>
+      <div>
+        <div style="font-weight:700;font-size:0.95rem;">Viora AI</div>
+        <div class="chat-online">Online · Gemini 2.5 Flash</div>
+      </div>
+      <div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+        <div class="fs-xs text-muted">🔒 100% Private</div>
+        <div class="fs-xs text-muted">No data shared</div>
+      </div>
+    </div>
+
+    <!-- Messages -->
+    <div class="chat-msgs" id="chatMsgs">
+      <!-- Welcome -->
+      <div class="msg ai">
+        <div class="msg-av">🧠</div>
+        <div class="msg-bubble">
+          Hey {{ user.username }}! 👋 I'm your Viora AI — I know your history, understand your patterns, and I'm genuinely here to help.<br><br>
+          Tell me how you're feeling, ask for coping strategies, or just vent. What's on your mind?
+        </div>
+      </div>
+
+      {% for m in messages %}
+      <div class="msg user">
+        <div class="msg-av">{{ user.username|first|upper }}</div>
+        <div class="msg-bubble">{{ m.message }}</div>
+      </div>
+      <div class="msg ai">
+        <div class="msg-av">🧠</div>
+        <div class="msg-bubble">{{ m.response }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Quick prompts -->
+    <div class="chat-quick-btns" id="quickBtns">
+      <button class="quick-btn" onclick="quickSend(this)">😰 I feel anxious</button>
+      <button class="quick-btn" onclick="quickSend(this)">📵 Help reduce screen time</button>
+      <button class="quick-btn" onclick="quickSend(this)">🧘 Give me a calming exercise</button>
+      <button class="quick-btn" onclick="quickSend(this)">🌙 I scroll too late at night</button>
+      <button class="quick-btn" onclick="quickSend(this)">😔 I feel depressed today</button>
+      <button class="quick-btn" onclick="quickSend(this)">🎯 How do I stay focused?</button>
+    </div>
+
+    <!-- Input -->
+    <div class="chat-input-row">
+      <textarea id="chatInput" class="chat-textarea" placeholder="Type a message… (Enter to send)" rows="1"></textarea>
+      <button class="btn btn-lime" id="sendBtn" onclick="sendMsg()" style="height:44px;padding:0 18px;flex-shrink:0;">Send ↑</button>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const msgs   = document.getElementById('chatMsgs');
+const input  = document.getElementById('chatInput');
+const sendBtn = document.getElementById('sendBtn');
+
+msgs.scrollTop = msgs.scrollHeight;
+
+input.addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 110) + 'px';
+});
+input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } });
+
+function quickSend(btn) { input.value = btn.textContent.trim(); sendMsg(); }
+
+function appendMsg(text, role) {
+  const d = document.createElement('div');
+  d.className = 'msg ' + role;
+  const av = document.createElement('div'); av.className = 'msg-av';
+  const bub = document.createElement('div'); bub.className = 'msg-bubble';
+  if (role === 'ai') {
+    av.textContent = '🧠';
+    av.style.background = 'linear-gradient(135deg,var(--lime),var(--cyan))';
+    av.style.color = 'var(--bg)';
+  } else {
+    av.textContent = '{{ user.username|first|upper }}';
+    av.style.background = 'linear-gradient(135deg,var(--violet),var(--rose))';
+    av.style.color = 'white';
+  }
+  bub.innerHTML = text.replace(/\n/g, '<br>');
+  d.appendChild(av); d.appendChild(bub);
+  msgs.appendChild(d);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function showTyping() {
+  const d = document.createElement('div'); d.className = 'msg ai'; d.id = 'typing';
+  d.innerHTML = `<div class="msg-av" style="background:linear-gradient(135deg,var(--lime),var(--cyan));color:var(--bg);">🧠</div>
+    <div class="typing-bubble"><div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
+  msgs.appendChild(d); msgs.scrollTop = msgs.scrollHeight;
+}
+
+function getCsrf() {
+  return document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='))?.split('=')[1] || '';
+}
+
+async function sendMsg() {
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = ''; input.style.height = 'auto';
+  sendBtn.disabled = true;
+  appendMsg(text, 'user');
+  showTyping();
+  try {
+    const r = await fetch('/api/chat/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify({ message: text })
+    });
+    const data = await r.json();
+    document.getElementById('typing')?.remove();
+    appendMsg(data.response, 'ai');
+  } catch {
+    document.getElementById('typing')?.remove();
+    appendMsg("I'm having a connection issue 💙. Please try again in a moment.", 'ai');
+  }
+  sendBtn.disabled = false;
+  input.focus();
+}
+</script>
+{% endblock %}

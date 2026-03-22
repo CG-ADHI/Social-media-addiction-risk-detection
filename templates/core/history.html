@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% block title %}History — Viora{% endblock %}
+{% block content %}
+<div class="container page-wrap">
+
+  <div class="page-hdr">
+    <div class="flex-sb" style="flex-wrap:wrap;gap:12px;">
+      <div>
+        <div class="page-title">Check-In History</div>
+        <div class="page-sub">Last 30 entries · Your complete wellness journal</div>
+      </div>
+      <a href="/checkin/" class="btn btn-lime">✍️ Today's Check-In</a>
+    </div>
+  </div>
+
+  {% if checkins %}
+
+  <!-- Summary stats -->
+  <div class="stat-grid mb-24 anim-in">
+    <div class="stat-card">
+      <div class="stat-icon">📊</div>
+      <div class="stat-num">{{ checkins|length }}</div>
+      <div class="stat-lbl">Entries Shown</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">✅</div>
+      <div class="stat-num">{% with low=0 %}{% for c in checkins %}{% if c.risk_level == 'low' %}{% with low=low|add:1 %}{% endwith %}{% endif %}{% endfor %}{{ checkins|length }}{% endwith %}</div>
+      <div class="stat-lbl">Days Tracked</div>
+    </div>
+  </div>
+
+  <div class="card anim-in">
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Risk</th>
+            <th>Score</th>
+            <th>Screen</th>
+            <th>Mood</th>
+            <th>Sentiment</th>
+            <th>Productivity</th>
+            <th>Journal</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in checkins %}
+          <tr>
+            <td>
+              <div style="font-weight:600;font-size:0.9rem;">{{ c.date|date:"M j, Y" }}</div>
+              <div class="fs-xs text-dim">{{ c.date|date:"l" }}</div>
+            </td>
+            <td>
+              <span class="risk-pill risk-{{ c.risk_level }}">
+                {% if c.risk_level == 'high' %}⚠️{% elif c.risk_level == 'medium' %}⚡{% else %}✅{% endif %}
+                {{ c.risk_level|title }}
+              </span>
+            </td>
+            <td>
+              <span class="mono-text fw-800" style="color:{% if c.risk_score >= 60 %}var(--danger){% elif c.risk_score >= 30 %}var(--warning){% else %}var(--success){% endif %};">
+                {{ c.risk_score|floatformat:0 }}
+              </span>
+            </td>
+            <td>
+              <span class="mono-text" style="color:{% if c.screen_time_hours > 6 %}var(--danger){% elif c.screen_time_hours > 3 %}var(--warning){% else %}var(--success){% endif %};">
+                {{ c.screen_time_hours }}h
+              </span>
+            </td>
+            <td>
+              <div class="flex-c gap-8">
+                <span>{% if c.mood_label == 'happy' %}😊{% elif c.mood_label == 'energetic' %}⚡{% elif c.mood_label == 'sad' %}😢{% elif c.mood_label == 'anxious' %}😰{% elif c.mood_label == 'angry' %}😠{% elif c.mood_label == 'tired' %}😴{% elif c.mood_label == 'bored' %}😑{% else %}😐{% endif %}</span>
+                <span class="fs-sm">{{ c.mood_label|title }}</span>
+                <span class="mono-text fs-xs text-dim">({{ c.mood_rating }}/10)</span>
+              </div>
+            </td>
+            <td>
+              <span class="tag fs-xs" style="color:{% if c.sentiment_label == 'positive' %}var(--success){% elif c.sentiment_label == 'negative' %}var(--danger){% else %}var(--amber){% endif %};">
+                {{ c.sentiment_label|title }}
+              </span>
+            </td>
+            <td>
+              <span class="mono-text" style="color:{% if c.productivity_score >= 70 %}var(--success){% elif c.productivity_score >= 40 %}var(--lime){% else %}var(--warning){% endif %};">
+                {{ c.productivity_score|floatformat:0 }}%
+              </span>
+            </td>
+            <td>
+              {% if c.journal_entry %}
+                <span class="tag" style="color:var(--violet);border-color:rgba(167,139,250,0.3);">📔 Yes</span>
+              {% else %}
+                <span class="text-dim fs-xs">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% else %}
+  <div class="card anim-in" style="text-align:center;padding:60px 24px;">
+    <div style="font-size:4rem;margin-bottom:16px;opacity:0.3;">📋</div>
+    <div style="font-size:1.2rem;font-weight:700;margin-bottom:8px;">No history yet</div>
+    <p class="text-muted fs-sm mb-24">Complete your first daily check-in to start building your wellness record.</p>
+    <a href="/checkin/" class="btn btn-lime btn-lg">✍️ Start First Check-In</a>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

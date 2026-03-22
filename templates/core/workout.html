@@ -1,0 +1,261 @@
+{% extends 'base.html' %}
+{% block title %}{{ workout.title }} — Viora{% endblock %}
+{% block content %}
+<div class="container page-wrap" style="max-width:760px;">
+
+  <div class="page-hdr">
+    <div class="flex-sb" style="flex-wrap:wrap;gap:12px;">
+      <div>
+        <div class="page-title">{{ workout.title }}</div>
+        <div class="page-sub">⏱ {{ workout.duration }} · Offline activity · No equipment needed</div>
+      </div>
+      <a href="javascript:history.back()" class="btn btn-surface">← Back</a>
+    </div>
+  </div>
+
+  <!-- Hero demo visual -->
+  <div class="workout-hero anim-in mb-24">
+    <div class="workout-big-icon">{{ workout.icon }}</div>
+    <div style="font-size:1.4rem;font-weight:800;margin-bottom:8px;">{{ workout.title }}</div>
+    <div class="fs-sm text-muted" style="max-width:420px;line-height:1.7;">
+      {% if key == 'breathing' %}
+        Follow the expanding and contracting circle. Breathe in sync with it.
+      {% elif key == 'meditation' %}
+        Close your eyes, follow the wave, let thoughts pass like clouds.
+      {% elif key == 'hiit' %}
+        Move with energy! Complete each exercise fully before the next.
+      {% elif key == 'walk' %}
+        Leave your phone behind. Nature resets the mind better than any app.
+      {% else %}
+        Follow each step at your own comfortable pace. No rush.
+      {% endif %}
+    </div>
+
+    <!-- Animated visual by type -->
+    {% if key == 'breathing' %}
+    <div style="margin:28px 0;">
+      <div class="breathing-circle" id="breatheCircle">Breathe In</div>
+      <div class="fs-xs text-muted" style="text-align:center;margin-top:8px;">4s in · 4s hold · 4s out · 4s hold</div>
+    </div>
+
+    {% elif key == 'meditation' %}
+    <div style="margin:28px 0;text-align:center;">
+      <svg class="meditation-wave" viewBox="0 0 300 60" xmlns="http://www.w3.org/2000/svg">
+        <path id="wavePath" fill="none" stroke="var(--lime)" stroke-width="2.5" stroke-linecap="round"/>
+        <circle id="wavePoint" r="5" fill="var(--lime)" filter="url(#glow)"/>
+        <defs>
+          <filter id="glow"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+      </svg>
+      <div class="fs-xs text-muted">Focus on your breath… let thoughts drift away</div>
+    </div>
+
+    {% elif key == 'hiit' %}
+    <div style="margin:28px 0;display:flex;flex-direction:column;align-items:center;gap:16px;">
+      <div id="hiitExercise" style="font-size:1.2rem;font-weight:700;color:var(--lime);font-family:var(--mono);">Ready!</div>
+      <div id="hiitTimer" style="font-family:var(--mono);font-size:3.5rem;font-weight:800;color:var(--lime);text-shadow:var(--glow-lime);">00</div>
+      <div class="flex gap-12">
+        <button class="btn btn-lime" onclick="startHiit()">▶ Start HIIT</button>
+        <button class="btn btn-ghost" onclick="stopHiit()">■ Stop</button>
+      </div>
+      <div id="hiitProgress" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;"></div>
+    </div>
+
+    {% elif key == 'stretching' %}
+    <div style="margin:28px 0;text-align:center;">
+      <div id="stretchAnim" style="font-size:5rem;animation:float 2s ease-in-out infinite;">🙆</div>
+      <div id="stretchLabel" style="font-size:1rem;font-weight:600;color:var(--lime);margin-top:12px;">Press Start to begin</div>
+      <div style="margin-top:14px;">
+        <button class="btn btn-lime" onclick="startStretch()">▶ Start Stretch Guide</button>
+      </div>
+    </div>
+
+    {% else %}
+    <div style="margin:28px 0;text-align:center;">
+      <div style="font-size:5rem;" class="anim-float">{{ workout.icon }}</div>
+      <div class="fs-sm text-muted" style="margin-top:12px;">Follow the steps below at your own pace</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Step-by-step guide -->
+  <div class="card mb-24 anim-in d2">
+    <div class="section-label">📋 Step-by-Step Guide</div>
+    <div class="workout-steps">
+      {% for step in workout.steps %}
+      <div class="workout-step" id="step-{{ forloop.counter0 }}">
+        <div class="step-num">{{ forloop.counter }}</div>
+        <div class="step-text">{{ step }}</div>
+        <div style="margin-left:auto;">
+          <button class="btn btn-surface btn-sm" onclick="markStep({{ forloop.counter0 }}, this)">Done</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Benefits section -->
+  <div class="card mb-24 anim-in d3" style="background:rgba(163,230,53,0.04);border-color:rgba(163,230,53,0.2);">
+    <div class="section-label">💚 Why This Helps</div>
+    <div class="grid-2">
+      {% if key == 'breathing' %}
+        <div class="insight-card green"><div class="insight-icon">🧠</div><div><div class="insight-title">Calms the nervous system</div><div class="insight-text">Box breathing activates your parasympathetic response, reducing cortisol and anxiety within minutes.</div></div></div>
+        <div class="insight-card teal"><div class="insight-icon">📵</div><div><div class="insight-title">Breaks the scroll urge</div><div class="insight-text">The 4-count pattern requires focus that interrupts automatic phone-reaching behavior.</div></div></div>
+      {% elif key == 'hiit' %}
+        <div class="insight-card green"><div class="insight-icon">⚡</div><div><div class="insight-title">Dopamine without a screen</div><div class="insight-text">Exercise releases natural dopamine — the same chemical social media hijacks — without the crash.</div></div></div>
+        <div class="insight-card amber"><div class="insight-icon">🧠</div><div><div class="insight-title">Reduces rumination</div><div class="insight-text">Physical exertion clears mental loops and reduces the urge to seek distraction on your phone.</div></div></div>
+      {% elif key == 'meditation' %}
+        <div class="insight-card teal"><div class="insight-icon">🌊</div><div><div class="insight-title">Builds impulse control</div><div class="insight-text">Regular meditation strengthens the prefrontal cortex — the part of your brain that resists urges.</div></div></div>
+        <div class="insight-card green"><div class="insight-icon">😌</div><div><div class="insight-title">Reduces social comparison</div><div class="insight-text">Mindfulness practice is clinically proven to reduce anxiety caused by social media comparison.</div></div></div>
+      {% elif key == 'journaling' %}
+        <div class="insight-card purple"><div class="insight-icon">📔</div><div><div class="insight-title">Processes emotions offline</div><div class="insight-text">Writing gives your mind a healthy outlet, reducing the need to seek validation on social platforms.</div></div></div>
+        <div class="insight-card green"><div class="insight-icon">📈</div><div><div class="insight-title">Tracks your growth</div><div class="insight-text">Journaling makes patterns visible — you'll see how screen time affects mood in your own words.</div></div></div>
+      {% elif key == 'walk' %}
+        <div class="insight-card green"><div class="insight-icon">☀️</div><div><div class="insight-title">Natural light resets your rhythm</div><div class="insight-text">Outdoor light suppresses melatonin disruption caused by blue screen exposure.</div></div></div>
+        <div class="insight-card teal"><div class="insight-icon">🌿</div><div><div class="insight-title">Breaks the loop</div><div class="insight-text">A 10-min walk without your phone interrupts compulsive checking cycles and grounds you physically.</div></div></div>
+      {% else %}
+        <div class="insight-card green"><div class="insight-icon">💚</div><div><div class="insight-title">Builds healthy habits</div><div class="insight-text">Consistent offline activities replace the dopamine loops created by excessive social media use.</div></div></div>
+        <div class="insight-card teal"><div class="insight-icon">🧠</div><div><div class="insight-title">Rewires your brain</div><div class="insight-text">Each offline activity you complete strengthens neural pathways away from compulsive scrolling.</div></div></div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;" class="anim-in">
+    <a href="/checkin/" class="btn btn-lime btn-lg">✍️ Log Today's Check-In</a>
+    <a href="/dashboard/" class="btn btn-surface btn-lg">📊 Dashboard</a>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Step marker ──────────────────────────────────
+function markStep(idx, btn) {
+  const step = document.getElementById('step-' + idx);
+  step.style.background = 'rgba(163,230,53,0.08)';
+  step.style.borderColor = 'var(--lime)';
+  step.querySelector('.step-num').style.background = 'rgba(163,230,53,0.3)';
+  btn.textContent = '✓';
+  btn.classList.add('btn-lime');
+  btn.disabled = true;
+}
+
+// ── Breathing animation ──────────────────────────
+{% if key == 'breathing' %}
+const circle = document.getElementById('breatheCircle');
+const phases = [
+  { text: 'Breathe In',  dur: 4000, scale: 1.4 },
+  { text: 'Hold',        dur: 4000, scale: 1.4 },
+  { text: 'Breathe Out', dur: 4000, scale: 1.0 },
+  { text: 'Hold',        dur: 4000, scale: 1.0 },
+];
+let pi = 0;
+function runBreath() {
+  const p = phases[pi % phases.length];
+  circle.textContent = p.text;
+  circle.style.transition = `transform ${p.dur}ms ease-in-out, opacity ${p.dur/2}ms`;
+  circle.style.transform = `scale(${p.scale})`;
+  pi++;
+  setTimeout(runBreath, p.dur);
+}
+runBreath();
+{% endif %}
+
+// ── Meditation wave ──────────────────────────────
+{% if key == 'meditation' %}
+const wavePath = document.getElementById('wavePath');
+const wavePoint = document.getElementById('wavePoint');
+let wt = 0;
+function drawWave() {
+  wt += 0.015;
+  let d = 'M 0 30';
+  for (let x = 0; x <= 300; x += 5) {
+    const y = 30 + Math.sin((x / 300) * Math.PI * 4 + wt) * 18 * Math.sin(wt * 0.3 + 1);
+    d += ` L ${x} ${y}`;
+  }
+  wavePath.setAttribute('d', d);
+  const px = (wt * 20) % 300;
+  const py = 30 + Math.sin((px / 300) * Math.PI * 4 + wt) * 18 * Math.sin(wt * 0.3 + 1);
+  wavePoint.setAttribute('cx', px);
+  wavePoint.setAttribute('cy', py);
+  requestAnimationFrame(drawWave);
+}
+drawWave();
+{% endif %}
+
+// ── HIIT timer ───────────────────────────────────
+{% if key == 'hiit' %}
+const EXERCISES = [
+  { name: '🤸 Jumping Jacks', reps: 20, time: 25 },
+  { name: '🦵 Squats',        reps: 15, time: 25 },
+  { name: '💪 Push-Ups',      reps: 10, time: 25 },
+  { name: '⏸ Plank',          reps:  1, time: 30 },
+  { name: '😮‍💨 Rest',          reps:  1, time: 60 },
+];
+let hiitIdx = 0, hiitSec = 0, hiitTimer = null, hiitRound = 1;
+
+function renderProgress() {
+  const prog = document.getElementById('hiitProgress');
+  prog.innerHTML = EXERCISES.map((e, i) => `
+    <div style="padding:5px 10px;border-radius:100px;font-size:0.72rem;font-weight:600;
+      background:${i === hiitIdx ? 'rgba(163,230,53,0.2)' : 'var(--bg3)'};
+      border:1px solid ${i === hiitIdx ? 'var(--lime)' : 'var(--border)'};
+      color:${i === hiitIdx ? 'var(--lime)' : 'var(--text3)'};">${e.name}</div>`).join('');
+}
+
+function startHiit() {
+  if (hiitTimer) return;
+  hiitIdx = 0; hiitSec = EXERCISES[0].time;
+  renderProgress();
+  hiitTimer = setInterval(() => {
+    hiitSec--;
+    document.getElementById('hiitTimer').textContent = String(hiitSec).padStart(2, '0');
+    document.getElementById('hiitExercise').textContent = `Round ${hiitRound}: ${EXERCISES[hiitIdx].name}`;
+    if (hiitSec <= 0) {
+      hiitIdx++;
+      if (hiitIdx >= EXERCISES.length) {
+        hiitIdx = 0; hiitRound++;
+        if (hiitRound > 2) { stopHiit(); document.getElementById('hiitExercise').textContent = '🎉 Complete! Great work!'; return; }
+      }
+      hiitSec = EXERCISES[hiitIdx].time;
+      renderProgress();
+    }
+  }, 1000);
+}
+function stopHiit() { clearInterval(hiitTimer); hiitTimer = null; }
+{% endif %}
+
+// ── Stretching guide ─────────────────────────────
+{% if key == 'stretching' %}
+const STRETCHES = [
+  { emoji: '🔄', label: 'Neck Rolls — 5 each side', time: 15 },
+  { emoji: '🤷', label: 'Shoulder Shrugs — 10 reps', time: 15 },
+  { emoji: '🙌', label: 'Wrist Circles — 10 each', time: 15 },
+  { emoji: '🔀', label: 'Seated Spinal Twist — hold 20s each', time: 40 },
+  { emoji: '🙇', label: 'Forward Fold — hold 30 seconds', time: 30 },
+];
+let si = 0, ss = 0, sTimer = null;
+function startStretch() {
+  if (sTimer) return;
+  si = 0; ss = STRETCHES[0].time;
+  updateStretch();
+  sTimer = setInterval(() => {
+    ss--;
+    document.getElementById('stretchLabel').textContent = `${STRETCHES[si].label} — ${ss}s`;
+    if (ss <= 0) {
+      si++;
+      if (si >= STRETCHES.length) { clearInterval(sTimer); document.getElementById('stretchLabel').textContent = '✅ Stretch complete! Feel better?'; document.getElementById('stretchAnim').textContent = '🌟'; return; }
+      ss = STRETCHES[si].time;
+      updateStretch();
+    }
+  }, 1000);
+}
+function updateStretch() {
+  document.getElementById('stretchAnim').textContent = STRETCHES[si].emoji;
+  document.getElementById('stretchLabel').textContent = `${STRETCHES[si].label} — ${ss}s`;
+}
+{% endif %}
+</script>
+{% endblock %}

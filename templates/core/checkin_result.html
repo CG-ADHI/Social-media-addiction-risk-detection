@@ -1,0 +1,206 @@
+{% extends 'base.html' %}
+{% block title %}Your Results — Viora{% endblock %}
+{% block content %}
+<div class="container page-wrap">
+
+  <div class="page-hdr">
+    <div class="page-title">Wellness Report</div>
+    <div class="page-sub">{{ checkin.date|date:"F j, Y" }} · Analysis complete</div>
+  </div>
+
+  <!-- 3-Column Score Row (INLINE, not popup) -->
+  <div class="grid-3 mb-24 anim-in">
+
+    <!-- Risk Score Ring -->
+    <div class="card card-lg" style="text-align:center;background:{% if checkin.risk_level == 'high' %}rgba(239,68,68,0.06){% elif checkin.risk_level == 'medium' %}rgba(245,158,11,0.06){% else %}rgba(34,197,94,0.06){% endif %};border-color:{% if checkin.risk_level == 'high' %}rgba(239,68,68,0.3){% elif checkin.risk_level == 'medium' %}rgba(245,158,11,0.3){% else %}rgba(34,197,94,0.3){% endif %};">
+      <div class="fs-xs text-muted" style="text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;font-weight:700;">Addiction Risk</div>
+      <div style="position:relative;display:inline-block;">
+        <svg width="140" height="140" class="score-ring-svg">
+          <circle class="score-ring-bg" cx="70" cy="70" r="56" stroke-width="10"/>
+          <circle class="score-ring-fg" id="riskRing" cx="70" cy="70" r="56" stroke-width="10"
+            stroke="{% if checkin.risk_level == 'high' %}#ef4444{% elif checkin.risk_level == 'medium' %}#f59e0b{% else %}#22c55e{% endif %}"
+            stroke-dasharray="351.86" stroke-dashoffset="351.86"/>
+        </svg>
+        <div class="score-ring-center">
+          <div style="font-family:var(--mono);font-size:1.8rem;font-weight:800;color:{% if checkin.risk_level == 'high' %}var(--danger){% elif checkin.risk_level == 'medium' %}var(--warning){% else %}var(--success){% endif %};">{{ checkin.risk_score|floatformat:0 }}</div>
+          <div class="fs-xs text-muted">/100</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <span class="risk-pill risk-{{ checkin.risk_level }}" style="font-size:0.8rem;padding:6px 16px;">
+          {% if checkin.risk_level == 'high' %}⚠️{% elif checkin.risk_level == 'medium' %}⚡{% else %}✅{% endif %}
+          {{ checkin.risk_level|title }} Risk
+        </span>
+      </div>
+    </div>
+
+    <!-- Mood Score -->
+    <div class="card card-lg" style="text-align:center;background:rgba(167,139,250,0.06);border-color:rgba(167,139,250,0.3);">
+      <div class="fs-xs text-muted" style="text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;font-weight:700;">Mood Score</div>
+      <div style="position:relative;display:inline-block;">
+        <svg width="140" height="140" class="score-ring-svg">
+          <circle class="score-ring-bg" cx="70" cy="70" r="56" stroke-width="10"/>
+          <circle class="score-ring-fg" id="moodRing" cx="70" cy="70" r="56" stroke-width="10"
+            stroke="#a78bfa" stroke-dasharray="351.86" stroke-dashoffset="351.86"/>
+        </svg>
+        <div class="score-ring-center">
+          <div style="font-size:2.8rem;line-height:1;">
+            {% if checkin.mood_label == 'happy' %}😊{% elif checkin.mood_label == 'energetic' %}⚡{% elif checkin.mood_label == 'sad' %}😢{% elif checkin.mood_label == 'anxious' %}😰{% elif checkin.mood_label == 'angry' %}😠{% elif checkin.mood_label == 'bored' %}😑{% elif checkin.mood_label == 'tired' %}😴{% else %}😐{% endif %}
+          </div>
+          <div class="fs-xs text-muted" style="margin-top:4px;">{{ checkin.mood_rating }}/10</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <span style="font-family:var(--mono);font-size:0.85rem;color:var(--violet);font-weight:700;">{{ checkin.mood_label|title }}</span>
+        <span class="fs-xs text-muted"> · Sentiment: </span>
+        <span class="fs-xs" style="color:{% if checkin.sentiment_label == 'positive' %}var(--success){% elif checkin.sentiment_label == 'negative' %}var(--danger){% else %}var(--amber){% endif %};font-weight:700;">{{ checkin.sentiment_label|title }}</span>
+      </div>
+    </div>
+
+    <!-- Productivity Score -->
+    <div class="card card-lg" style="text-align:center;background:rgba(163,230,53,0.06);border-color:rgba(163,230,53,0.3);">
+      <div class="fs-xs text-muted" style="text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;font-weight:700;">Productivity</div>
+      <div style="position:relative;display:inline-block;">
+        <svg width="140" height="140" class="score-ring-svg">
+          <circle class="score-ring-bg" cx="70" cy="70" r="56" stroke-width="10"/>
+          <circle class="score-ring-fg" id="prodRing" cx="70" cy="70" r="56" stroke-width="10"
+            stroke="#a3e635" stroke-dasharray="351.86" stroke-dashoffset="351.86"/>
+        </svg>
+        <div class="score-ring-center">
+          <div style="font-family:var(--mono);font-size:1.8rem;font-weight:800;color:var(--lime);">{{ prod.score|floatformat:0 }}</div>
+          <div class="fs-xs text-muted">%</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <span class="fs-sm" style="color:var(--lime);font-weight:600;">{{ prod.overall }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- XP earned banner -->
+  {% if checkin.xp_earned > 0 %}
+  <div class="alert alert-info anim-in mb-20" style="background:rgba(163,230,53,0.08);border-color:rgba(163,230,53,0.3);">
+    <span class="alert-icon">⚡</span>
+    <div class="alert-body">
+      <div class="alert-title" style="color:var(--lime);">+{{ checkin.xp_earned }} XP Earned Today!</div>
+      <div class="alert-text">Keep checking in daily to maintain your streak and earn more XP.</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Explanation + Usage details -->
+  <div class="grid-2 mb-24 anim-in d2">
+
+    <div class="card">
+      <div class="section-label">📋 Assessment Details</div>
+      <div class="insight-card {% if checkin.risk_level == 'high' %}red{% elif checkin.risk_level == 'medium' %}amber{% else %}green{% endif %}" style="margin-bottom:16px;">
+        <div class="insight-icon">{% if checkin.risk_level == 'high' %}⚠️{% elif checkin.risk_level == 'medium' %}⚡{% else %}✅{% endif %}</div>
+        <div class="insight-text">{{ checkin.risk_explanation }}</div>
+      </div>
+      {% if prod.feedback %}
+      <div class="section-label" style="margin-top:16px;">Productivity Feedback</div>
+      {% for fb in prod.feedback %}
+      <div class="fs-sm text-muted mb-12" style="display:flex;gap:8px;"><span>→</span><span>{{ fb }}</span></div>
+      {% endfor %}
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <div class="section-label">📊 Usage Snapshot</div>
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div class="flex-sb">
+          <span class="fs-sm text-muted">📱 Screen Time</span>
+          <span class="mono-text fw-800" style="color:{% ifcheckin.screen_time_hours > 6 %}var(--danger){% elif checkin.screen_time_hours > 3 %}var(--warning){% else %}var(--success){% endif %}">{{ checkin.screen_time_hours }}h</span>
+        </div>
+        <div class="flex-sb">
+          <span class="fs-sm text-muted">🔄 App Opens</span>
+          <span class="mono-text fw-800" style="color:{% if checkin.usage_frequency > 30 %}var(--danger){% elif checkin.usage_frequency > 15 %}var(--warning){% else %}var(--success){% endif %}">{{ checkin.usage_frequency }}×</span>
+        </div>
+        <div class="flex-sb">
+          <span class="fs-sm text-muted">😴 Sleep Disturbed</span>
+          <span style="color:{% if checkin.sleep_disturbance %}var(--danger){% else %}var(--success){% endif %};font-weight:700;">{% if checkin.sleep_disturbance %}Yes ⚠️{% else %}No ✅{% endif %}</span>
+        </div>
+        <div class="flex-sb">
+          <span class="fs-sm text-muted">🌙 Late-Night Scroll</span>
+          <span style="color:{% if checkin.late_night_usage %}var(--danger){% else %}var(--success){% endif %};font-weight:700;">{% if checkin.late_night_usage %}Yes ⚠️{% else %}No ✅{% endif %}</span>
+        </div>
+        <div class="flex-sb">
+          <span class="fs-sm text-muted">⏱ Focus Sessions</span>
+          <span class="mono-text fw-800 text-lime">{{ checkin.focus_sessions }}</span>
+        </div>
+        {% if checkin.journal_entry %}
+        <div class="divider"></div>
+        <div>
+          <div class="fs-xs text-muted mb-12" style="text-transform:uppercase;letter-spacing:1px;">Journal Excerpt</div>
+          <p class="fs-sm" style="color:var(--text2);font-style:italic;line-height:1.6;border-left:3px solid var(--violet);padding-left:12px;">"{{ checkin.journal_entry|truncatechars:220 }}"</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Suggestions -->
+  <div class="card mb-24 anim-in d3" style="border-color:rgba(163,230,53,0.2);">
+    <div class="section-label">🤖 Viora AI Recommendations</div>
+    <div id="aiBox"></div>
+  </div>
+
+  <!-- Recommended Activities with workout links -->
+  {% if activities %}
+  <div class="mb-24 anim-in d4">
+    <div class="section-between mb-16">
+      <div class="section-label" style="margin:0;">🧘 Recommended Activities For You</div>
+      <span class="fs-xs text-muted">Based on {{ checkin.mood_label|title }} mood + {{ checkin.risk_level }} risk</span>
+    </div>
+    <div class="activity-grid">
+      {% for act in activities %}
+      <a href="/workout/{{ act.demo_type }}/" class="activity-card">
+        <div class="act-icon">{{ act.icon }}</div>
+        <div class="act-title">{{ act.title }}</div>
+        <div class="act-desc">{{ act.desc }}</div>
+        <div class="act-dur">⏱ {{ act.duration }} · Tap for demo</div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Action buttons -->
+  <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;" class="anim-in">
+    <a href="/dashboard/" class="btn btn-lime btn-lg">📊 View Dashboard</a>
+    <a href="/chat/" class="btn btn-outline btn-lg">💬 Talk to AI</a>
+    <a href="/history/" class="btn btn-surface btn-lg">📋 History</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Animate score rings
+function animateRing(id, pct, delay=300) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const circ = 351.86;
+  el.style.strokeDashoffset = circ;
+  setTimeout(() => { el.style.transition = 'stroke-dashoffset 1.4s cubic-bezier(0.4,0,0.2,1)'; el.style.strokeDashoffset = circ - (circ * Math.min(pct,100) / 100); }, delay);
+}
+animateRing('riskRing', {{ checkin.risk_score }}, 300);
+animateRing('moodRing', {{ checkin.mood_rating }} * 10, 500);
+animateRing('prodRing', {{ prod.score }}, 700);
+
+// AI Suggestions
+const aiData = {{ ai_suggestions|safe }};
+const aiBox = document.getElementById('aiBox');
+const icons = ['💡','🌿','⚡'];
+if (Array.isArray(aiData)) {
+  aiData.forEach((s, i) => {
+    const d = document.createElement('div');
+    d.className = 'ai-suggestion-card';
+    d.innerHTML = `<div class="ai-s-num">${i+1}</div><div class="ai-s-text">${s}</div>`;
+    aiBox.appendChild(d);
+  });
+} else {
+  aiBox.innerHTML = `<div class="ai-suggestion-card"><div class="ai-s-num">1</div><div class="ai-s-text">${aiData}</div></div>`;
+}
+</script>
+{% endblock %}
