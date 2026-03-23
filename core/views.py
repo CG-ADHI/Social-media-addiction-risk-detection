@@ -343,29 +343,108 @@ def chat_api(request):
         return JsonResponse({'error': 'Empty'}, status=400)
 
     profile = get_or_create_profile(request.user)
-    last = DailyCheckIn.objects.filter(user=request.user).first()
-    ctx = f"Risk:{last.risk_level}, Mood:{last.mood_label}, Streak:{profile.streak_days}d" if last else "New user"
+    username = request.user.username
 
-    history = ChatMessage.objects.filter(user=request.user).order_by('-created_at')[:5]
-    history_text = ''.join(
-        f"User: {h.message}\nYou: {h.response}\n"
-        for h in reversed(list(history))
-    )
+    all_checkins = list(DailyCheckIn.objects.filter(user=request.user).order_by('-date')[:7])
+    last = all_checkins[0] if all_checkins else None
 
-    prompt = f"""You are MindGuard, a warm, empathetic AI wellness companion for social media addiction recovery.
-User context: {ctx}. XP: {profile.xp}.
+    if last:
+        avg_screen = round(sum(c.screen_time_hours for c in all_checkins) / len(all_checkins), 1)
+        avg_mood   = round(sum(c.mood_rating for c in all_checkins) / len(all_checkins), 1)
+        risk_trend = "improving" if len(all_checkins) >= 2 and all_checkins[0].risk_score < all_checkins[1].risk_score else "worsening or stable"
+        personal_context = f"""
+- Name: {username}
+- Streak: {profile.streak_days} days
+- Level: {profile.get_level_info()['level']} ({profile.xp} XP)
+- Today risk: {last.risk_level} ({last.risk_score}/100)
+- Today mood: {last.mood_label} ({last.mood_rating}/10)
+- Today screen time: {last.screen_time_hours}h
+- 7-day avg screen time: {avg_screen}h
+- 7-day avg mood: {avg_mood}/10
+- Risk trend: {risk_trend}
+- Sleep disturbed: {"Yes" if last.sleep_disturbance else "No"}
+- Late night scrolling: {"Yes" if last.late_night_usage else "No"}
+- Journal sentiment: {last.sentiment_label}
+- Last journal: {last.journal_entry[:200] if last.journal_entry else "None"}
+"""
+    else:
+        personal_context = f"- Name: {username}\n- New user, no check-in data yet"
+
+    history = list(ChatMessage.objects.filter(user=request.user).order_by('-created_at')[:6])
+    history_text = ''
+    for h in reversed(history):
+        history_text += f"{username}: {h.message}\nViora: {h.response}\n\n"
+
+    prompt = f"""You are Viora, a smart and caring personal wellness assistant for {username}.
+
+USER DATA:
+{personal_context}
+
+CONVERSATION SO FAR:
 {history_text}
-User: {user_msg}
-Respond warmly in 2-3 sentences. Acknowledge feelings first. Suggest one practical offline action when relevant."""
+{username}: {user_msg}
 
-    response = get_gemini_response(
-        prompt,
-        "I hear you 💙. Sometimes stepping away for just 10 minutes — a glass of water, a stretch — can completely reset your mind. What's one tiny thing you could do right now?"
+RULES:
+1. You MUST give a DIFFERENT answer every time based on exactly what the user asked
+2. Use the user's personal data above to give specific advice
+3. Call them by name occasionally
+4. Be warm but direct — give real advice not vague tips
+5. Keep it 2-4 sentences
+6. Reference their actual numbers (risk score, screen time, mood, streak) when relevant
+7. If they ask about their stats, tell them exactly
+8. If they ask for an exercise, describe it specifically
+9. NEVER give the same generic response twice
+
+Viora:"""
+
+    try:
+        import google.generativeai as genai
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        model = genai.GenerativeModel('models/gemini-2.5-flash')
+        response = model.generate_content(prompt)
+        ai_response = response.text.strip()
+        # Remove "Viora:" prefix if model adds it
+        if ai_response.startswith('Viora:'):
+            ai_response = ai_response[6:].strip()
+    except Exception as e:
+        print(f"Gemini error: {e}")
+        # Varied fallbacks based on message content
+        msg_lower = user_msg.lower()
+        if any(w in msg_lower for w in ['how am i', 'my stats', 'my score', 'doing']):
+            if last:
+                ai_response = f"Here's your snapshot {username}: Risk score {last.risk_score}/100 ({last.risk_level}), mood {last.mood_rating}/10, screen time {last.screen_time_hours}h today. Your {profile.streak_days}-day streak is {'strong 🔥' if profile.streak_days > 3 else 'just getting started — keep going!'}."
+            else:
+                ai_response = f"No check-in data yet {username}! Do your first daily check-in and I'll give you a full personal analysis. 📊"
+        elif any(w in msg_lower for w in ['anxious', 'anxiety', 'stress', 'stressed', 'worry', 'worried']):
+            ai_response = f"I hear you {username} 💙 For anxiety right now: inhale for 4 counts, hold 4, exhale 4, hold 4 — repeat 5 times. This activates your parasympathetic nervous system and reduces cortisol within minutes. Try it before picking up your phone."
+        elif any(w in msg_lower for w in ['sad', 'depressed', 'unhappy', 'lonely', 'empty']):
+            ai_response = f"That feeling is valid, {username} 💙 When you feel this way, the worst thing is more scrolling — it deepens the emptiness. Try stepping outside for 10 minutes without your phone. Natural light and movement genuinely shift mood chemistry. I'm here if you want to talk more."
+        elif any(w in msg_lower for w in ['motivate', 'motivation', 'lazy', 'cant', "can't"]):
+            ai_response = f"You already have a {profile.streak_days}-day streak {username} — that's proof you can do this! 💪 Start with just ONE thing: put your phone face-down for the next 30 minutes and do the first task on your list. Momentum builds from tiny actions."
+        elif any(w in msg_lower for w in ['sleep', 'night', 'late', 'tired', 'exhausted']):
+            ai_response = f"Late night scrolling is one of the biggest addiction signals {username}. Try this tonight: at 10pm, put your phone in a different room and charge it there. Your sleep quality will improve within 2-3 days and you'll feel it clearly. 🌙"
+        elif any(w in msg_lower for w in ['exercise', 'workout', 'breathing', 'meditation']):
+            ai_response = f"Great choice {username}! 🧘 Go to the Workouts page — I've set up live animated demos for breathing, HIIT, meditation, and stretching. Based on your {last.mood_label if last else 'current'} mood, I'd suggest starting with {'box breathing' if last and last.mood_label in ['anxious','angry'] else 'a mindful walk or journaling'}."
+        elif any(w in msg_lower for w in ['screen time', 'phone', 'reduce', 'less']):
+            if last:
+                ai_response = f"Your screen time today is {last.screen_time_hours}h {username}. {'That is above average — ' if last.screen_time_hours > 4 else 'Good job keeping it reasonable! '}Try the 20-20-20 rule: every 20 minutes, look at something 20 feet away for 20 seconds. Also set your phone to grayscale mode — it makes scrolling less stimulating."
+            else:
+                ai_response = f"To reduce screen time {username}, start by tracking it honestly in your daily check-in. Awareness is step one. Then try setting a specific goal — like no phone for the first 30 minutes after waking up."
+        else:
+            responses = [
+                f"Tell me more about that {username} — I want to understand what you're going through specifically so I can give you the most useful advice. 💙",
+                f"That's worth exploring {username}. Based on your recent patterns, I think the most helpful thing I can suggest is to take a 5-minute break right now and do one thing offline. What would feel good?",
+                f"I hear you {username}. Your wellness data shows you're {'on a good path 📈' if last and last.risk_level == 'low' else 'dealing with some real challenges right now'}. What specific part would you like help with?",
+            ]
+            import random
+            ai_response = random.choice(responses)
+
+    ChatMessage.objects.create(
+        user=request.user,
+        message=user_msg,
+        response=ai_response
     )
-
-    ChatMessage.objects.create(user=request.user, message=user_msg, response=response)
-    return JsonResponse({'response': response})
-
+    return JsonResponse({'response': ai_response})
 
 # ── Workouts Page ─────────────────────────────────────────────────────────────
 @login_required

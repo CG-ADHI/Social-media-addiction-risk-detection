@@ -1,10 +1,15 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = 'django-insecure-viora-v2-2024-change-in-production'
+
+SECRET_KEY = os.getenv('SECRET_KEY', 'fallback-secret-key')
 DEBUG = True
 ALLOWED_HOSTS = ['*']
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -72,4 +77,4 @@ LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/'
 
 # Remove API key or keep empty safely
-GEMINI_API_KEY = None
+GEMINI_API_KEY = 'SAIzaSyAAgX8fFdF1ktC17xXIBZP0pGR74nLN6mY'
