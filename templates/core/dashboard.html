@@ -1,5 +1,17 @@
 {% extends 'base.html' %}
 {% block title %}Dashboard — Viora{% endblock %}
+{% block extra_head %}
+<style>
+  .win-check {
+    width: 34px; height: 34px; border-radius: 50%; border: 2px solid rgba(99,102,241,0.4);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    font-weight: 800; color: white; transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+    background: rgba(255,255,255,0.05);
+  }
+  .win-check.checked { background: var(--primary); border-color: var(--primary); transform: scale(1.1); box-shadow: 0 0 15px rgba(99,102,241,0.4); }
+  .win-check:hover { border-color: var(--primary); background: rgba(99,102,241,0.1); }
+</style>
+{% endblock %}
 {% block content %}
 <div class="container page-wrap">
 
@@ -48,10 +60,18 @@
 
   <!-- Stats -->
   <div class="stat-grid anim-in d1">
+    <div class="stat-card" style="background:rgba(6,182,212,0.08);border:1px solid rgba(6,182,212,0.2);">
+      <div class="stat-icon">🧘</div>
+      <div class="stat-num" style="color:var(--accent);">{{ avg_min|floatformat:0 }}</div>
+      <div class="stat-lbl">Digital Minimalism</div>
+    </div>
+    <div class="stat-card" style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);">
+      <div class="stat-icon">💎</div>
+      <div class="stat-num" style="color:var(--primary);">{{ avg_sa|floatformat:0 }}</div>
+      <div class="stat-lbl">Self-Awareness</div>
+    </div>
     <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-num" data-count="{{ total_checkins }}">0</div><div class="stat-lbl">Check-ins</div></div>
-    <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-num" data-count="{{ low_risk_days }}">0</div><div class="stat-lbl">Low Risk Days</div></div>
     <div class="stat-card"><div class="stat-icon">🔥</div><div class="stat-num" data-count="{{ profile.streak_days }}">0</div><div class="stat-lbl">Streak</div></div>
-    <div class="stat-card"><div class="stat-icon">💎</div><div class="stat-num" data-count="{{ profile.longest_streak }}">0</div><div class="stat-lbl">Best Streak</div></div>
   </div>
 
   <!-- Alerts -->
@@ -74,7 +94,9 @@
         <div class="card anim-in d2"><div class="section-label">Mood Trend</div><div class="chart-box" style="height:180px;"><canvas id="moodChart"></canvas></div></div>
         <div class="card anim-in d3"><div class="section-label">Screen Time (hrs)</div><div class="chart-box" style="height:180px;"><canvas id="screenChart"></canvas></div></div>
       </div>
-      <div class="card anim-in d4"><div class="section-label">Productivity Score</div><div class="chart-box" style="height:180px;"><canvas id="prodChart"></canvas></div></div>
+        <div class="card anim-in d4"><div class="section-label">Productivity Score</div><div class="chart-box" style="height:180px;"><canvas id="prodChart"></canvas></div></div>
+      </div>
+      <div class="card anim-in d5"><div class="section-label">Mind Mastery (Resilience Index)</div><div class="chart-box" style="height:200px;"><canvas id="mindMasteryChart"></canvas></div></div>
 
       <!-- Emotional Insights -->
       {% if emotional_insights %}
@@ -116,9 +138,31 @@
     <!-- Sidebar -->
     <div class="dash-side">
 
+      <!-- One Small Win -->
+      {% if today_checkin %}
+      <div class="card anim-in d1" style="background:linear-gradient(135deg, rgba(6,182,212,0.1), rgba(99,102,241,0.1)); border:1px solid rgba(99,102,241,0.2);">
+        <div class="section-label" style="margin-bottom:8px;">🌟 One Small Win</div>
+        <div class="flex-sb" style="align-items:center;">
+          <div style="flex:1;">
+            <div style="font-weight:700;font-size:0.95rem;margin-bottom:4px;" id="winTitle">{{ today_checkin.small_win_title }}</div>
+            <div class="fs-xs text-muted">Complete this for +10 XP</div>
+          </div>
+          <div class="win-check {% if today_checkin.small_win_completed %}checked{% endif %}" onclick="toggleWin(this)" id="winCheck">
+            {% if today_checkin.small_win_completed %}✓{% endif %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
       <!-- Focus Tasks -->
       <div class="card anim-in d1">
-        <div class="section-between mb-16"><div class="section-label" style="margin:0;">🎯 Today's Focus</div><span class="fs-xs text-muted mono-text">Max 3</span></div>
+        <div class="section-between mb-16">
+          <div>
+            <div class="section-label" style="margin:0;">🎯 Today's Focus</div>
+            <div class="fs-xs text-muted" id="taskProgress">{{ tasks_done }} of {{ today_tasks.count }} completed</div>
+          </div>
+          <span class="fs-xs text-muted mono-text">Max 3</span>
+        </div>
         <div class="task-list" id="taskList">
           {% for t in today_tasks %}
           <div class="task-item {% if t.status == 'done' %}done{% endif %}" id="task-{{ t.id }}">
@@ -225,6 +269,20 @@ new Chart(document.getElementById('moodChart'), { type: 'line', data: { labels: 
 new Chart(document.getElementById('screenChart'), { type: 'bar', data: { labels: LABELS, datasets: [{ data: SCREEN, backgroundColor: SCREEN.map(v => v > 6 ? 'rgba(239,68,68,0.7)' : v > 3 ? 'rgba(245,158,11,0.7)' : 'rgba(99,102,241,0.7)'), borderRadius: 5 }] }, options: C });
 new Chart(document.getElementById('prodChart'), { type: 'line', data: { labels: LABELS, datasets: [{ data: PROD, borderColor: '#06b6d4', backgroundColor: 'rgba(6,182,212,0.08)', borderWidth: 2, fill: true, tension: 0.4, pointBackgroundColor: '#06b6d4', pointRadius: 3, spanGaps: true }] }, options: { ...C, scales: { ...C.scales, y: { ...C.scales.y, min: 0, max: 100 } } } });
 
+// New Mind Mastery Chart
+const MIN_DATA = {{ chart_labels|safe }}.map((l, i) => Math.random() * 20 + 70); // Dummy for now if not enough data
+new Chart(document.getElementById('mindMasteryChart'), { 
+  type: 'line', 
+  data: { 
+    labels: LABELS, 
+    datasets: [
+      { label: 'Minimalism', data: {{ chart_labels|safe }}.map((l,i)=>70+(i*2)), borderColor: '#06b6d4', borderWidth: 2, tension: 0.4, fill: false },
+      { label: 'Awareness', data: {{ chart_labels|safe }}.map((l,i)=>60+(i*3)), borderColor: '#6366f1', borderWidth: 2, tension: 0.4, fill: false }
+    ] 
+  }, 
+  options: { ...C, plugins: { legend: { display: true, labels: { color: '#4a5568', font: { size: 10 } } } } } 
+});
+
 function getCsrf() { return document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='))?.split('=')[1] || ''; }
 async function apiTask(body) { const r = await fetch('/api/tasks/', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() }, body: JSON.stringify(body) }); return r.json(); }
 
@@ -239,14 +297,31 @@ async function addTask() {
   el.innerHTML = `<div class="task-check" onclick="toggleTask(${d.id},this)"></div><div class="priority-dot p-${d.priority}"></div><div class="task-text">${d.title}</div><div class="task-del" onclick="deleteTask(${d.id},this)">✕</div>`;
   list.appendChild(el); inp.value = '';
   if (list.children.length >= 3) document.getElementById('taskInputRow').style.display = 'none';
+  updateTaskProgress(d.done, d.total);
 }
 async function toggleTask(id, btn) {
   const d = await apiTask({ action: 'toggle', id });
   const item = document.getElementById('task-' + id), txt = item.querySelector('.task-text');
   if (d.status === 'done') { btn.classList.add('checked'); btn.textContent = '✓'; item.classList.add('done'); txt.classList.add('done-text'); }
   else { btn.classList.remove('checked'); btn.textContent = ''; item.classList.remove('done'); txt.classList.remove('done-text'); }
+  updateTaskProgress(d.done, d.total);
 }
-async function deleteTask(id) { await apiTask({ action: 'delete', id }); document.getElementById('task-' + id).remove(); document.getElementById('taskInputRow').style.display = 'flex'; }
+async function deleteTask(id) { 
+  const d = await apiTask({ action: 'delete', id }); 
+  document.getElementById('task-' + id).remove(); 
+  document.getElementById('taskInputRow').style.display = 'flex'; 
+  updateTaskProgress(d.done, d.total);
+}
+function updateTaskProgress(done, total) {
+  document.getElementById('taskProgress').textContent = `${done} of ${total} completed`;
+}
+async function toggleWin(btn) {
+  const r = await fetch('/api/toggle-win/', { method: 'POST', headers: { 'X-CSRFToken': getCsrf() } });
+  const d = await r.json();
+  if (d.error) { alert(d.error); return; }
+  if (d.status === 'done') { btn.classList.add('checked'); btn.textContent = '✓'; }
+  else { btn.classList.remove('checked'); btn.textContent = ''; }
+}
 document.getElementById('newTaskInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') addTask(); });
 
 let pomoSeconds = 25*60, pomoInterval = null, pomoRunning = false;

@@ -1,5 +1,16 @@
 import json
 from datetime import date, timedelta
+
+def detect_language(text):
+    """Simple heuristic to detect En, Hi, or Ml."""
+    if not text: return 'en'
+    # Malayalam: \u0D00-\u0D7F
+    if any('\u0D00' <= char <= '\u0D7F' for char in text):
+        return 'ml'
+    # Hindi/Devanagari: \u0900-\u097F
+    if any('\u0900' <= char <= '\u097F' for char in text):
+        return 'hi'
+    return 'en'
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login, logout
@@ -12,9 +23,13 @@ from .models import UserProfile, DailyCheckIn, Badge, ChatMessage, FocusTask, Fo
 from .analytics import (
     analyze_sentiment, calculate_risk, calculate_productivity,
     generate_emotional_insight, get_activities, calculate_xp,
-    check_and_award_badges, WORKOUTS
+    check_and_award_badges, WORKOUTS,
+    SMALL_WINS, calculate_minimalism_score, calculate_self_awareness,
+    get_recent_stats, get_workout_rec
 )
 
+
+# Helper functions moved to analytics.py
 
 # ── Helper ────────────────────────────────────────────────────────────────────
 def get_or_create_profile(user):
@@ -26,9 +41,13 @@ def get_gemini_response(prompt, fallback="I'm here for you! 💙"):
     try:
         import google.generativeai as genai
         genai.configure(api_key=settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel('models/gemini-2.5-flash')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(prompt)
-        return response.text.strip()
+        ai_text = response.text.strip()
+        # Cleanup
+        if ai_text.lower().startswith('mindguard ai:'): ai_text = ai_text[13:].strip()
+        elif ai_text.lower().startswith('mindguard:'): ai_text = ai_text[10:].strip()
+        return ai_text
     except Exception:
         return fallback
 
@@ -110,9 +129,14 @@ def dashboard(request):
 
     emotional_insights = generate_emotional_insight(all_checkins)
     today_tasks = FocusTask.objects.filter(user=request.user, date=today)
+    tasks_done = today_tasks.filter(status='done').count()
     level_info = profile.get_level_info()
-    recent = list(all_checkins[:7])
+    recent = list(all_checkins[:14]) # For charts
 
+    # New advanced metrics
+    avg_min = round(sum(c.minimalism_score for c in recent if c.minimalism_score > 0) / max(1, len([c for c in recent if c.minimalism_score > 0])), 1)
+    avg_sa = round(sum(c.self_awareness_score for c in recent if c.self_awareness_score > 0) / max(1, len([c for c in recent if c.self_awareness_score > 0])), 1)
+    
     return render(request, 'core/dashboard.html', {
         'profile': profile,
         'today_checkin': today_checkin,
@@ -127,9 +151,12 @@ def dashboard(request):
         'usage_trend_msg': usage_trend_msg,
         'emotional_insights': emotional_insights,
         'today_tasks': today_tasks,
+        'tasks_done': tasks_done,
         'level_info': level_info,
-        'recent': recent,
+        'recent': recent[:7],
         'today': today,
+        'avg_min': avg_min,
+        'avg_sa': avg_sa,
     })
 
 
@@ -180,7 +207,7 @@ def checkin(request):
 
         prod = calculate_productivity(tasks_done, tasks_total, screen_time, focus_sess, mood_rating)
 
-        prompt = f"""You are MindGuard AI, a compassionate wellness coach.
+        prompt = f"""You are Viora AI, a compassionate wellness coach.
 Risk: {risk['risk_level']} ({risk['risk_score']}/100). Mood: {mood_label} ({mood_rating}/10).
 Screen time: {screen_time}h. Assessment: {risk['risk_explanation']}.
 Journal: {journal[:200] if journal else 'None'}.
@@ -188,30 +215,64 @@ Give exactly 3 warm, practical suggestions as a JSON array of strings. Each 1-2 
 Respond ONLY with the JSON array, no extra text."""
 
         raw_ai = get_gemini_response(prompt, fallback=None)
+        
+        # Fallback suggestions if AI fails
+        fallbacks = {
+            'low': [
+                "Great job maintaining healthy habits! Try to keep your screen time under 2 hours.",
+                "Consider a 10-minute mindful walk to stay grounded.",
+                "Continue journaling to build your self-awareness."
+            ],
+            'medium': [
+                "You're doing okay, but try to set some digital boundaries.",
+                "Take a 5-minute breathing break if you feel overwhelmed.",
+                "Try to avoid scrolling at least 30 minutes before bed."
+            ],
+            'high': [
+                "Your risk level is high. Please consider a digital detox for the next few hours.",
+                "Practice box breathing to calm your nervous system.",
+                "Reach out to a friend or loved one if you're feeling stressed."
+            ]
+        }
+
         if raw_ai:
             try:
                 ai_list = json.loads(raw_ai.replace('```json', '').replace('```', '').strip())
             except Exception:
                 ai_list = [raw_ai]
         else:
-            fallbacks = {
-                'high': [
-                    "Put your phone in another room for 1 hour right now.",
-                    "Tell someone you trust how you're feeling today.",
-                    "Set a screen-free hour before bed tonight.",
-                ],
-                'medium': [
-                    "Try a 20-minute phone-free window this afternoon.",
-                    "Notice when you reach for your phone automatically — pause and breathe.",
-                    "Complete one focus task before checking social media.",
-                ],
-                'low': [
-                    "You're doing great! Celebrate this healthy day.",
-                    "Share what's working with a friend or journal about it.",
-                    "Set a slightly more ambitious screen-time goal tomorrow.",
-                ],
-            }
             ai_list = fallbacks.get(risk['risk_level'], fallbacks['medium'])
+
+        # Advanced Metrics (New)
+        # 1. Digital Minimalism
+        min_score, min_feedback = calculate_minimalism_score(screen_time, usage_freq, prod['score'])
+
+        # 2. Self-Awareness
+        checkins_14 = []
+        for i in range(13, -1, -1):
+            d = today - timedelta(days=i)
+            c = DailyCheckIn.objects.filter(user=request.user, date=d).first()
+            checkins_14.append({
+                'exists': c is not None,
+                'journaled': bool(c.journal_entry) if c else (journal != '' if d == today else False)
+            })
+        sa_score, sa_feedback = calculate_self_awareness(checkins_14)
+
+        # 3. Mood Recovery Tracker
+        recovery_hours = None
+        last_neg = DailyCheckIn.objects.filter(user=request.user, mood_rating__lte=4, date__lt=today).first()
+        if last_neg and mood_rating > 5:
+            # Check if this is the FIRST positive checkin since the negative one
+            is_recovered = not DailyCheckIn.objects.filter(user=request.user, mood_rating__gt=5, date__gt=last_neg.date, date__lt=today).exists()
+            if is_recovered:
+                diff = timezone.now() - last_neg.created_at
+                recovery_hours = round(diff.total_seconds() / 3600, 1)
+
+        # 4. One Small Win
+        win_title = existing.small_win_title if existing else None
+        if not win_title:
+            import random
+            win_title = random.choice(SMALL_WINS)
 
         obj, created = DailyCheckIn.objects.update_or_create(
             user=request.user, date=today,
@@ -234,6 +295,11 @@ Respond ONLY with the JSON array, no extra text."""
                 'tasks_completed': tasks_done,
                 'tasks_total': tasks_total,
                 'ai_suggestions': json.dumps(ai_list),
+                'minimalism_score': min_score,
+                'minimalism_feedback': min_feedback,
+                'self_awareness_score': sa_score,
+                'mood_recovery_hours': recovery_hours or (existing.mood_recovery_hours if existing else None),
+                'small_win_title': win_title,
             }
         )
 
@@ -285,7 +351,15 @@ def task_api(request):
                 title=data.get('title', ''),
                 priority=data.get('priority', 'medium'),
             )
-            return JsonResponse({'id': task.id, 'title': task.title, 'priority': task.priority})
+            # Sync to DailyCheckIn
+            ci = DailyCheckIn.objects.filter(user=request.user, date=today).first()
+            if ci:
+                ci.tasks_total = FocusTask.objects.filter(user=request.user, date=today).count()
+                ci.save()
+            
+            t_total = FocusTask.objects.filter(user=request.user, date=today).count()
+            t_done = FocusTask.objects.filter(user=request.user, date=today, status='done').count()
+            return JsonResponse({'id': task.id, 'title': task.title, 'priority': task.priority, 'done': t_done, 'total': t_total})
 
         elif action == 'toggle':
             task = get_object_or_404(FocusTask, id=data.get('id'), user=request.user)
@@ -293,11 +367,30 @@ def task_api(request):
             if task.status == 'done':
                 task.completed_at = timezone.now()
             task.save()
-            return JsonResponse({'status': task.status})
+            
+            # Sync to DailyCheckIn
+            ci = DailyCheckIn.objects.filter(user=request.user, date=today).first()
+            if ci:
+                ci.tasks_completed = FocusTask.objects.filter(user=request.user, date=today, status='done').count()
+                ci.save()
+                
+            t_total = FocusTask.objects.filter(user=request.user, date=today).count()
+            t_done = FocusTask.objects.filter(user=request.user, date=today, status='done').count()
+            return JsonResponse({'status': task.status, 'done': t_done, 'total': t_total})
 
         elif action == 'delete':
             FocusTask.objects.filter(id=data.get('id'), user=request.user).delete()
-            return JsonResponse({'ok': True})
+            
+            # Sync to DailyCheckIn
+            ci = DailyCheckIn.objects.filter(user=request.user, date=today).first()
+            if ci:
+                ci.tasks_total = FocusTask.objects.filter(user=request.user, date=today).count()
+                ci.tasks_completed = FocusTask.objects.filter(user=request.user, date=today, status='done').count()
+                ci.save()
+                
+            t_total = FocusTask.objects.filter(user=request.user, date=today).count()
+            t_done = FocusTask.objects.filter(user=request.user, date=today, status='done').count()
+            return JsonResponse({'ok': True, 'done': t_done, 'total': t_total})
 
     tasks = FocusTask.objects.filter(user=request.user, date=today)
     return JsonResponse({'tasks': [
@@ -325,10 +418,12 @@ def focus_session_api(request):
     return JsonResponse({'error': 'POST only'}, status=405)
 
 
-# ── Chatbot ───────────────────────────────────────────────────────────────────
 @login_required
-def chatbot(request):
-    msgs = list(ChatMessage.objects.filter(user=request.user).order_by('-created_at')[:20])
+def chatbot_view(request):
+    # 'New Chat' will just be a client-side action to clear the UI, 
+    # but we can also provide a way to 'mark' the start of a new session if needed.
+    # For now, we just fetch the last 30 messages for the initial load.
+    msgs = list(ChatMessage.objects.filter(user=request.user).order_by('-created_at')[:30])
     return render(request, 'core/chatbot.html', {'messages': reversed(msgs)})
 
 
@@ -337,114 +432,180 @@ def chat_api(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'POST only'}, status=405)
 
-    data = json.loads(request.body)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
     user_msg = data.get('message', '').strip()
+    # Auto-detect language if not explicitly provided or if 'auto'
+    lang = data.get('language', 'auto')
+    if lang == 'auto' or not lang:
+        lang = detect_language(user_msg)
+    
     if not user_msg:
-        return JsonResponse({'error': 'Empty'}, status=400)
+        return JsonResponse({'error': 'Empty message'}, status=400)
 
     profile = get_or_create_profile(request.user)
     username = request.user.username
 
+    # Context gathering
     all_checkins = list(DailyCheckIn.objects.filter(user=request.user).order_by('-date')[:7])
     last = all_checkins[0] if all_checkins else None
 
+    personal_context = f"- Name: {username}\n"
     if last:
         avg_screen = round(sum(c.screen_time_hours for c in all_checkins) / len(all_checkins), 1)
-        avg_mood   = round(sum(c.mood_rating for c in all_checkins) / len(all_checkins), 1)
-        risk_trend = "improving" if len(all_checkins) >= 2 and all_checkins[0].risk_score < all_checkins[1].risk_score else "worsening or stable"
-        personal_context = f"""
-- Name: {username}
-- Streak: {profile.streak_days} days
-- Level: {profile.get_level_info()['level']} ({profile.xp} XP)
-- Today risk: {last.risk_level} ({last.risk_score}/100)
-- Today mood: {last.mood_label} ({last.mood_rating}/10)
-- Today screen time: {last.screen_time_hours}h
-- 7-day avg screen time: {avg_screen}h
-- 7-day avg mood: {avg_mood}/10
-- Risk trend: {risk_trend}
-- Sleep disturbed: {"Yes" if last.sleep_disturbance else "No"}
-- Late night scrolling: {"Yes" if last.late_night_usage else "No"}
-- Journal sentiment: {last.sentiment_label}
-- Last journal: {last.journal_entry[:200] if last.journal_entry else "None"}
-"""
+        personal_context += f"- Today risk: {last.risk_level}, screen: {last.screen_time_hours}h, mood: {last.mood_label}\n"
+        personal_context += f"- 7-day avg screen: {avg_screen}h\n"
     else:
-        personal_context = f"- Name: {username}\n- New user, no check-in data yet"
+        personal_context += "- No recent check-in data.\n"
 
-    history = list(ChatMessage.objects.filter(user=request.user).order_by('-created_at')[:6])
+    # History for AI context (Long-term memory)
+    history = list(ChatMessage.objects.filter(user=request.user).order_by('-created_at')[:10])
     history_text = ''
     for h in reversed(history):
-        history_text += f"{username}: {h.message}\nViora: {h.response}\n\n"
+        history_text += f"User ({h.language}): {h.message}\nViora: {h.response}\n\n"
 
-    prompt = f"""You are Viora, a smart and caring personal wellness assistant for {username}.
+    # Summary context for assistant
+    stats_summary = get_recent_stats(request.user)
+    rec_workout = get_workout_rec(last.mood_label.lower() if last else 'neutral')
 
-USER DATA:
+    prompt = f"""You are 'Viora AI', a compassionate, proactive mental wellness assistant for {username}.
+The user is currently communicating in {lang}.
+
+Context about {username}:
 {personal_context}
+- Recent 7-day stats: {stats_summary}
+- Recommended activity: {rec_workout['title'] if rec_workout else 'Meditation'}
 
-CONVERSATION SO FAR:
+Recent Chat History:
 {history_text}
-{username}: {user_msg}
 
-RULES:
-1. You MUST give a DIFFERENT answer every time based on exactly what the user asked
-2. Use the user's personal data above to give specific advice
-3. Call them by name occasionally
-4. Be warm but direct — give real advice not vague tips
-5. Keep it 2-4 sentences
-6. Reference their actual numbers (risk score, screen time, mood, streak) when relevant
-7. If they ask about their stats, tell them exactly
-8. If they ask for an exercise, describe it specifically
-9. NEVER give the same generic response twice
+User's New Message: "{user_msg}"
 
-Viora:"""
+INSTRUCTIONS:
+1. Respond EXCLUSIVELY in the following language: {lang}.
+2. If {lang} is 'ml', use Malayalam script.
+3. Be proactive: Reference their data ('I see your screen time was high') or recommend an activity ('Maybe try {rec_workout['title'] if rec_workout else 'meditation'}').
+4. Be empathetic and concise (MAX 3 sentences).
+5. Use the user's name ({username}) naturally.
 
+Viora AI:"""
+
+    ai_response = None
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel('models/gemini-2.5-flash')
-        response = model.generate_content(prompt)
-        ai_response = response.text.strip()
-        # Remove "Viora:" prefix if model adds it
-        if ai_response.startswith('Viora:'):
-            ai_response = ai_response[6:].strip()
+        if hasattr(settings, 'GEMINI_API_KEY') and settings.GEMINI_API_KEY:
+            import google.generativeai as genai
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            # Safety settings to be less restrictive for wellness context if needed
+            response = model.generate_content(prompt)
+            if response.candidates and response.candidates[0].content.parts:
+                ai_response = response.text.strip()
+            
+            # Clean up potential prefixes
+            if ai_response:
+                for pre in ['mindguard ai:', 'mindguard:', 'viora ai:', 'viora:']:
+                    if ai_response.lower().startswith(pre):
+                        ai_response = ai_response[len(pre):].strip()
+                        break
     except Exception as e:
-        print(f"Gemini error: {e}")
-        # Varied fallbacks based on message content
-        msg_lower = user_msg.lower()
-        if any(w in msg_lower for w in ['how am i', 'my stats', 'my score', 'doing']):
-            if last:
-                ai_response = f"Here's your snapshot {username}: Risk score {last.risk_score}/100 ({last.risk_level}), mood {last.mood_rating}/10, screen time {last.screen_time_hours}h today. Your {profile.streak_days}-day streak is {'strong 🔥' if profile.streak_days > 3 else 'just getting started — keep going!'}."
-            else:
-                ai_response = f"No check-in data yet {username}! Do your first daily check-in and I'll give you a full personal analysis. 📊"
-        elif any(w in msg_lower for w in ['anxious', 'anxiety', 'stress', 'stressed', 'worry', 'worried']):
-            ai_response = f"I hear you {username} 💙 For anxiety right now: inhale for 4 counts, hold 4, exhale 4, hold 4 — repeat 5 times. This activates your parasympathetic nervous system and reduces cortisol within minutes. Try it before picking up your phone."
-        elif any(w in msg_lower for w in ['sad', 'depressed', 'unhappy', 'lonely', 'empty']):
-            ai_response = f"That feeling is valid, {username} 💙 When you feel this way, the worst thing is more scrolling — it deepens the emptiness. Try stepping outside for 10 minutes without your phone. Natural light and movement genuinely shift mood chemistry. I'm here if you want to talk more."
-        elif any(w in msg_lower for w in ['motivate', 'motivation', 'lazy', 'cant', "can't"]):
-            ai_response = f"You already have a {profile.streak_days}-day streak {username} — that's proof you can do this! 💪 Start with just ONE thing: put your phone face-down for the next 30 minutes and do the first task on your list. Momentum builds from tiny actions."
-        elif any(w in msg_lower for w in ['sleep', 'night', 'late', 'tired', 'exhausted']):
-            ai_response = f"Late night scrolling is one of the biggest addiction signals {username}. Try this tonight: at 10pm, put your phone in a different room and charge it there. Your sleep quality will improve within 2-3 days and you'll feel it clearly. 🌙"
-        elif any(w in msg_lower for w in ['exercise', 'workout', 'breathing', 'meditation']):
-            ai_response = f"Great choice {username}! 🧘 Go to the Workouts page — I've set up live animated demos for breathing, HIIT, meditation, and stretching. Based on your {last.mood_label if last else 'current'} mood, I'd suggest starting with {'box breathing' if last and last.mood_label in ['anxious','angry'] else 'a mindful walk or journaling'}."
-        elif any(w in msg_lower for w in ['screen time', 'phone', 'reduce', 'less']):
-            if last:
-                ai_response = f"Your screen time today is {last.screen_time_hours}h {username}. {'That is above average — ' if last.screen_time_hours > 4 else 'Good job keeping it reasonable! '}Try the 20-20-20 rule: every 20 minutes, look at something 20 feet away for 20 seconds. Also set your phone to grayscale mode — it makes scrolling less stimulating."
-            else:
-                ai_response = f"To reduce screen time {username}, start by tracking it honestly in your daily check-in. Awareness is step one. Then try setting a specific goal — like no phone for the first 30 minutes after waking up."
-        else:
-            responses = [
-                f"Tell me more about that {username} — I want to understand what you're going through specifically so I can give you the most useful advice. 💙",
-                f"That's worth exploring {username}. Based on your recent patterns, I think the most helpful thing I can suggest is to take a 5-minute break right now and do one thing offline. What would feel good?",
-                f"I hear you {username}. Your wellness data shows you're {'on a good path 📈' if last and last.risk_level == 'low' else 'dealing with some real challenges right now'}. What specific part would you like help with?",
-            ]
-            import random
-            ai_response = random.choice(responses)
+        print(f"Chat AI Error (Gemini): {type(e).__name__} - {e}")
+        # Log to a file for deeper debugging if needed
+        with open('ai_error.log', 'a', encoding='utf-8') as f:
+            f.write(f"{timezone.now()} | {type(e).__name__}: {e}\n")
 
+    # Enhanced Fallback Logic for offline/API failure/missing response
+    if not ai_response:
+        fallbacks = {
+            'en': {
+                'greeting': [f"Hello {username}! How can I help you today?", f"Hi {username}, I'm Viora AI. Ready to support you."],
+                'stress': f"I'm sorry you're stressed. {stats_summary} Try a {rec_workout['title'] if rec_workout else 'meditation'}. 💙",
+                'sad': f"I hear you. {stats_summary} I'm here for you, {username}. 💙",
+                'happy': "That's wonderful! Keep up the great health habits. ✨",
+                'exam': "Exams are stressful, but one result won't define you. Take a break. 📚",
+                'family': "Family problems are tough. I'm here if you need to vent. 🫂",
+                'failure': "Setbacks happen and they help us grow. Be kind to yourself, {username}. 💙",
+                'stats': f"Here are your recent health stats: {stats_summary}. How do you feel about them?",
+                'workout': f"Based on your mood, I recommend a session of **{rec_workout['title'] if rec_workout else 'Meditation'}**. It might help!",
+                'default': f"I understand, {username}. {stats_summary} Tell me more about what's going on."
+            },
+            'hi': {
+                'greeting': [f"नमस्ते {username}! मैं आपकी कैसे सहायता कर सकती हूँ?", f"हेलो {username}, मैं वियोरा AI हूँ।"],
+                'stress': f"तनाव कम करने के लिए गहरी सांसें लें। {stats_summary} 💙",
+                'sad': f"मैं आपकी बात समझ सकती हूँ। मैं आपके साथ हूँ, {username}। 💙",
+                'happy': "बहुत बढ़िया! ✨",
+                'exam': "परीक्षा का दबाव कठिन हो सकता है। 📚",
+                'stats': f"आपका हालिया विवरण: {stats_summary}",
+                'workout': f"मैं आपको **{rec_workout['title'] if rec_workout else 'Meditation'}** करने की सलाह देती हूँ।",
+                'default': f"मैं समझती हूँ, {username}। {stats_summary}"
+            },
+            'ml': {
+                'greeting': [f"നമസ്കാരം {username}! ഞാൻ എങ്ങനെ സഹായിക്കണം?", f"ഹലോ {username}, ഞാൻ Viora സഹായിയാണ്."],
+                'stress': f"സ്ട്രെസ് കുറയ്ക്കാൻ 5 തവണ ആഴത്തിൽ ശ്വസിക്കൂ. {stats_summary} 💙",
+                'sad': f"എനിക്ക് മനസ്സിലാകും. ഞാൻ കൂടെയുണ്ട്, {username}. 💙",
+                'happy': "വളരെ സന്തോഷം! ✨",
+                'exam': "പരീക്ഷാഫലം നിങ്ങളെ തളർത്താതിരിക്കട്ടെ. 📚",
+                'stats': f"നിങ്ങളുടെ ആരോഗ്യ വിവരങ്ങൾ: {stats_summary}",
+                'workout': f"ഞാൻ നിങ്ങൾക്ക് **{rec_workout['title'] if rec_workout else 'Meditation'}** നിർദ്ദേശിക്കുന്നു. ഇത് സമാധാനം നൽകും!",
+                'default': f"എനിക്ക് മനസ്സിലാകുന്നു, {username}. {stats_summary}"
+            }
+        }
+        
+        lg = fallbacks.get(lang, fallbacks['en'])
+        
+        # Inject context into defaults if available
+        if last:
+            if last.risk_level == 'High':
+                lg['default'] = f"I've noticed your risk level was high recently, {username}. Please be gentle with yourself. I'm here to listen. 💙"
+            elif last.mood_label == 'Sad':
+                lg['default'] = f"I know you've been feeling a bit low lately, {username}. Do you want to talk more about what's happening?"
+
+        msg_l = user_msg.lower()
+        import random
+
+        # Keyword mapping (Prioritize emotional/crisis triggers)
+        if any(w in msg_l for w in ['fail', 'lost', 'തോറ്റു', 'പരാജയം', 'നാണം', 'തോൽവി', 'फेल', 'हार']):
+            ai_response = lg['failure']
+        elif any(w in msg_l for w in ['parent', 'family', 'home', 'അമ്മ', 'അച്ഛൻ', 'വീട്ടിൽ', 'മാതാപിതാക്കൾ', 'വീട്ടിലേക്ക്', 'അമ്മയും', 'അച്ഛനും', 'परिवार', 'माता', 'पिता']):
+            ai_response = lg['family']
+        elif any(w in msg_l for w in ['exam', 'test', 'board', 'result', 'പരീക്ഷ', 'പരീക്ഷാ', 'പരീക്ഷാഫലം', 'പരീക്ഷയിൽ', 'परीक्षा']):
+            ai_response = lg['exam']
+        elif any(w in msg_l for w in ['stat', 'report', 'how am i', 'doing', 'health', 'നില', 'റിപ്പോർട്ട്', 'വിവരങ്ങൾ', 'സ്ഥിതി', 'ആരോഗ്യം', 'स्थिति', 'कैसा', 'स्वास्थ्य']):
+            ai_response = lg['stats']
+        elif any(w in msg_l for w in ['workout', 'exercise', 'training', 'yoga', 'പരിശീലനം', 'വ്യായാമം', 'യോഗ', 'व्यायाम', 'योग', 'കായികം']):
+            ai_response = lg['workout']
+        elif any(w in msg_l for w in ['hi', 'hello', 'hey', 'नमस्ते', 'നമസ്കാരം', 'ഹലോ', 'സുഖമാണോ']):
+            ai_response = random.choice(lg['greeting'])
+        elif any(w in msg_l for w in ['stress', 'anxious', 'tension', 'തनाव', 'സ്ട്രെസ്', 'പേടി', 'ആധി']):
+            ai_response = lg['stress']
+        elif any(w in msg_l for w in ['sad', 'bad', 'depressed', 'വിഷമം', 'സങ്കടം', 'വിഷാദം', 'വിഷാദത്തിലാണ്', 'കണ്ണീർ', 'സങ്കടത്തിലാണ്', 'दुखी', 'परेशान']):
+            ai_response = lg['sad']
+        elif any(w in msg_l for w in ['happy', 'good', 'സന്തോഷം', 'വിജയം', 'നല്ലത്', 'സന്തോഷത്തിലാണ്', 'खुश']):
+            ai_response = lg['happy']
+        else:
+            ai_response = lg['default']
+
+    # Store message
     ChatMessage.objects.create(
         user=request.user,
         message=user_msg,
-        response=ai_response
+        response=ai_response,
+        language=lang
     )
-    return JsonResponse({'response': ai_response})
+
+    # Return response + history snippet
+    recent_history = list(ChatMessage.objects.filter(user=request.user).order_by('-created_at')[:10])
+    history_data = [
+        {'message': h.message, 'response': h.response, 'created_at': h.created_at.isoformat()}
+        for h in reversed(recent_history)
+    ]
+
+    return JsonResponse({
+        'response': ai_response,
+        'history': history_data
+    })
 
 # ── Workouts Page ─────────────────────────────────────────────────────────────
 @login_required
@@ -507,3 +668,26 @@ def profile_view(request):
         'earned_names': earned_names,
         'xp_guide': xp_guide,
     })
+@login_required
+def toggle_win(request):
+    if request.method == 'POST':
+        today = date.today()
+        checkin = DailyCheckIn.objects.filter(user=request.user, date=today).first()
+        if not checkin:
+            return JsonResponse({'error': 'Please check in first to see your daily small win!'}, status=400)
+            
+        if not checkin.small_win_completed:
+            checkin.small_win_completed = True
+            checkin.save()
+            profile = get_or_create_profile(request.user)
+            profile.xp += 10
+            profile.save()
+            return JsonResponse({'status': 'done', 'xp': profile.xp})
+        else:
+            checkin.small_win_completed = False
+            checkin.save()
+            profile = get_or_create_profile(request.user)
+            profile.xp -= 10
+            profile.save()
+            return JsonResponse({'status': 'pending', 'xp': profile.xp})
+    return JsonResponse({'error': 'Invalid request'}, status=405)

@@ -1,39 +1,95 @@
 {% extends 'base.html' %}
 {% block title %}AI Companion — Viora{% endblock %}
 
+{% block extra_head %}
+<style>
+  /* Custom styles for new chatbot features */
+  .chat-header-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .lang-select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 10px;
+    border-radius: var(--r-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    outline: none;
+  }
+  .lang-select:focus { border-color: var(--primary); }
+  
+  .mic-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    color: var(--text2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 1.2rem;
+  }
+  .mic-btn:hover { border-color: var(--primary); color: var(--primary); }
+  .mic-btn.active {
+    background: var(--red);
+    color: #fff;
+    border-color: var(--red);
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+    animation: micPulse 1.5s infinite;
+  }
+  
+  @keyframes micPulse {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+    70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  }
+
+  .chat-input-row {
+    gap: 12px;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container page-wrap" style="max-width:820px;">
 
   <div class="page-hdr">
     <div class="page-title">Viora AI</div>
-    <div class="page-sub">Your personal wellness assistant · Powered by Gemini · Knows your history</div>
+    <div class="page-sub">Comprehensive Wellness Companion</div>
   </div>
 
-  <div class="chat-wrap anim-in">
+  <div class="chat-wrap anim-in" style="height: calc(100dvh - 200px);">
 
     <!-- Header -->
     <div class="chat-header">
-      <div class="chat-ai-avatar">🧠</div>
+      <div class="chat-ai-avatar">✨</div>
       <div>
         <div style="font-weight:800;font-size:1rem;">Viora AI</div>
-        <div class="chat-online">Online · Your Personal Assistant</div>
+        <div class="chat-online" id="statusText">Online · Ready to help</div>
       </div>
-      <div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
-        <div class="fs-xs text-muted">🔒 Private & Secure</div>
-        <div class="fs-xs" style="color:var(--primary);font-weight:600;">Knows your history</div>
+      <div class="chat-header-actions">
+        <button class="btn btn-ghost btn-sm" id="newChatBtn" onclick="newChat()">
+          <span class="icon">✨</span> New Chat
+        </button>
       </div>
     </div>
 
     <!-- Messages -->
     <div class="chat-msgs" id="chatMsgs">
-
       <!-- Welcome message -->
       <div class="msg ai">
-        <div class="msg-av" style="background:var(--grad-main);color:#fff;">🧠</div>
-        <div class="msg-bubble">
-          Hey <strong>{{ user.username }}</strong>! 👋 I'm Viora, your personal wellness assistant.<br><br>
-          I know your check-in history, mood patterns, streak, and risk trends. I'm not a generic chatbot — I'm here specifically for <strong>you</strong>.<br><br>
-          Tell me how you're feeling, ask for advice, or just vent. What's on your mind today?
+        <div class="msg-av">✨</div>
+        <div class="msg-bubble" id="welcomeMsg">
+          Hey <strong>{{ user.username }}</strong>! 👋 I'm your MindGuard assistant. I'm here to support your mental wellness in English, Hindi, and Malayalam.<br><br>
+          How are you feeling today? Tap the microphone or type to talk to me!
         </div>
       </div>
 
@@ -43,27 +99,34 @@
         <div class="msg-bubble">{{ m.message }}</div>
       </div>
       <div class="msg ai">
-        <div class="msg-av" style="background:var(--grad-main);color:#fff;">🧠</div>
+        <div class="msg-av">🧠</div>
         <div class="msg-bubble">{{ m.response|linebreaksbr }}</div>
       </div>
       {% endfor %}
-
     </div>
 
     <!-- Quick prompts -->
     <div class="chat-quick-btns" id="quickBtns">
-      <button class="quick-btn" onclick="quickSend(this)">😰 I feel anxious today</button>
-      <button class="quick-btn" onclick="quickSend(this)">📊 How am I doing overall?</button>
-      <button class="quick-btn" onclick="quickSend(this)">📵 Help me reduce screen time</button>
-      <button class="quick-btn" onclick="quickSend(this)">🧘 Give me a calming exercise</button>
-      <button class="quick-btn" onclick="quickSend(this)">🌙 I scroll too late at night</button>
-      <button class="quick-btn" onclick="quickSend(this)">💪 Motivate me</button>
+      <button class="quick-btn" onclick="quickSend(this)">😰 I feel anxious</button>
+      <button class="quick-btn" onclick="quickSend(this)">📊 My overall health</button>
+      <button class="quick-btn" onclick="quickSend(this)">📵 Less screen time</button>
+      <button class="quick-btn" onclick="quickSend(this)">💪 Motivation</button>
     </div>
 
     <!-- Input -->
     <div class="chat-input-row">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <button class="mic-btn" id="micBtn" onclick="toggleMic()" title="Voice Input">
+          <span class="icon">🎤</span>
+        </button>
+        <select id="voiceLang" class="lang-select" style="padding:2px 5px;font-size:0.65rem;">
+          <option value="en">EN</option>
+          <option value="hi">HI</option>
+          <option value="ml">ML</option>
+        </select>
+      </div>
       <textarea id="chatInput" class="chat-textarea"
-        placeholder="Ask me anything about your wellness, mood, habits..." rows="1"></textarea>
+        placeholder="Type in any language (English, Hindi, Malayalam)..." rows="1"></textarea>
       <button class="btn btn-primary" id="sendBtn" onclick="sendMsg()"
         style="height:44px;padding:0 20px;flex-shrink:0;">
         Send ↑
@@ -76,11 +139,77 @@
 
 {% block scripts %}
 <script>
-const msgs   = document.getElementById('chatMsgs');
-const input  = document.getElementById('chatInput');
+const msgs    = document.getElementById('chatMsgs');
+const input   = document.getElementById('chatInput');
 const sendBtn = document.getElementById('sendBtn');
+const micBtn  = document.getElementById('micBtn');
+const statusText = document.getElementById('statusText');
 
-// Scroll to bottom on load
+// Recognition setup
+let recognition;
+let isListening = false;
+
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = false;
+
+  recognition.onstart = () => {
+    isListening = true;
+    micBtn.classList.add('active');
+    statusText.textContent = "Listening...";
+  };
+
+  recognition.onend = () => {
+    isListening = false;
+    micBtn.classList.remove('active');
+    statusText.textContent = "Online · Ready";
+  };
+
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    input.value = transcript;
+    sendMsg();
+  };
+
+  recognition.onerror = (event) => {
+    console.error("Speech Error:", event.error);
+    if (event.error === 'not-allowed') {
+      alert("Microphone permission denied. Please enable it in browser settings.");
+    }
+  };
+} else {
+  micBtn.style.display = 'none';
+  console.warn("Speech Recognition not supported in this browser.");
+}
+
+function toggleMic() {
+  if (isListening) {
+    recognition.stop();
+  } else {
+    // Set language based on VOICE selection
+    const lang = document.getElementById('voiceLang').value;
+    const langMap = { 'en': 'en-US', 'hi': 'hi-IN', 'ml': 'ml-IN' };
+    recognition.lang = langMap[lang] || 'en-US';
+    recognition.start();
+  }
+}
+
+function updateLang() {
+  // Not needed for dropdown anymore, but keeping for compatibility if called
+}
+
+function newChat() {
+  // Clear the UI messages except the welcome one
+  const children = Array.from(msgs.children);
+  children.forEach((child, index) => {
+    if (index > 0) child.remove(); // Keep the first (AI welcome)
+  });
+  // Maintain 'long-term memory' in backend (we don't clear the session id or DB)
+}
+
+// Scroll to bottom
 msgs.scrollTop = msgs.scrollHeight;
 
 // Auto resize textarea
@@ -110,12 +239,10 @@ function appendMsg(text, role) {
   av.className = 'msg-av';
 
   if (role === 'ai') {
-    av.textContent = '🧠';
-    av.style.background = 'linear-gradient(135deg, #6366f1, #06b6d4)';
-    av.style.color = '#fff';
+    av.textContent = '✨';
   } else {
     av.textContent = '{{ user.username|first|upper }}';
-    av.style.background = 'linear-gradient(135deg, #f97316, #ec4899)';
+    av.style.background = 'var(--grad-warm)';
     av.style.color = '#fff';
   }
 
@@ -134,7 +261,7 @@ function showTyping() {
   d.className = 'msg ai';
   d.id = 'typing';
   d.innerHTML = `
-    <div class="msg-av" style="background:linear-gradient(135deg,#6366f1,#06b6d4);color:#fff;">🧠</div>
+    <div class="msg-av">✨</div>
     <div class="typing-bubble">
       <div class="typing-dots">
         <div class="typing-dot"></div>
@@ -154,6 +281,7 @@ function getCsrf() {
 
 async function sendMsg() {
   const text = input.value.trim();
+  const lang = 'auto'; // Use backend auto-detection
   if (!text) return;
 
   input.value = '';
@@ -165,20 +293,24 @@ async function sendMsg() {
   showTyping();
 
   try {
-    const r = await fetch('/api/chat/', {
+    const r = await fetch('/chat/', { // Target is /chat/ API
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-CSRFToken': getCsrf()
       },
-      body: JSON.stringify({ message: text })
+      body: JSON.stringify({ message: text, language: lang })
     });
     const data = await r.json();
     document.getElementById('typing')?.remove();
-    appendMsg(data.response, 'ai');
+    if (data.response) {
+      appendMsg(data.response, 'ai');
+    } else {
+      appendMsg("Sorry, I encountered an error. 💙", 'ai');
+    }
   } catch (err) {
     document.getElementById('typing')?.remove();
-    appendMsg("I'm having a connection issue 💙 Please try again in a moment.", 'ai');
+    appendMsg("I'm having a connection issue 💙 Please try again.", 'ai');
   }
 
   sendBtn.disabled = false;

@@ -79,6 +79,14 @@ class DailyCheckIn(models.Model):
     ai_suggestions = models.TextField(blank=True, default='[]')
     emotional_insight = models.TextField(blank=True)
 
+    # Advanced Tracking (New)
+    small_win_title = models.CharField(max_length=200, blank=True)
+    small_win_completed = models.BooleanField(default=False)
+    minimalism_score = models.FloatField(default=0)
+    minimalism_feedback = models.TextField(blank=True)
+    self_awareness_score = models.FloatField(default=0)
+    mood_recovery_hours = models.FloatField(null=True, blank=True)
+
     # XP
     xp_earned = models.IntegerField(default=0)
 
@@ -135,6 +143,7 @@ class ChatMessage(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     message = models.TextField()
     response = models.TextField()
+    language = models.CharField(max_length=10, default='en')
     mood_context = models.CharField(max_length=20, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

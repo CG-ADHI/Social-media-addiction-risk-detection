@@ -505,3 +505,56 @@ def check_and_award_badges(user, profile, checkin, all_checkins):
     if awarded:
         profile.save()
     return awarded
+# ── Advanced Metrics (New) ───────────────────────────────────────────────────
+SMALL_WINS = [
+    "Drink a full glass of water 💧",
+    "Stretch your arms and neck for 2 minutes 🙆",
+    "Clean your phone screen with a cloth 📱",
+    "Take 5 deep ‘Box Breaths’ 🫁",
+    "Write down 1 thing you achieved today ✍️",
+    "De-clutter 3 items from your physical workspace 🧹",
+    "Stand up and walk for 60 seconds 🚶",
+    "Close all browser tabs you don't need right now 🌐",
+]
+
+def calculate_minimalism_score(screen_time, usage_freq, productivity_score):
+    """0-100 score for digital minimalism."""
+    st_pts = max(0, 40 - (screen_time * 5))
+    freq_pts = max(0, 30 - (usage_freq / 3))
+    prod_pts = (productivity_score / 100) * 30
+    score = round(st_pts + freq_pts + prod_pts, 1)
+    
+    if score >= 80: feedback = "You are mastering digital discipline! 🧘"
+    elif score >= 50: feedback = "Good balance, keep maintaining these boundaries. 📱"
+    else: feedback = "Time to reclaim your attention and focus. 🚨"
+    return score, feedback
+
+def calculate_self_awareness(checkins_last_14):
+    """0-100 score for consistency and journaling."""
+    consistency = sum(1 for c in checkins_last_14 if c['exists']) / 14
+    journaling = sum(1 for c in checkins_last_14 if c['journaled']) / 14
+    
+    score = round((consistency * 70) + (journaling * 30), 1)
+    if score >= 80: feedback = "You are becoming exceptionally self-aware. 💎"
+    elif score >= 50: feedback = "Great consistency! You're building a strong habit. 📈"
+    else: feedback = "Try to check in more often to build self-awareness. 🌱"
+    return score, feedback
+
+def get_recent_stats(user):
+    """Summarize last 7 days for the assistant."""
+    from .models import DailyCheckIn
+    checkins = DailyCheckIn.objects.filter(user=user).order_by('-date')[:7]
+    if not checkins: return "No recent health data."
+    avg_screen = round(sum(c.screen_time_hours for c in checkins) / len(checkins), 1)
+    avg_mood = round(sum(c.mood_rating for c in checkins) / len(checkins), 1)
+    latest = checkins[0]
+    return f"Avg screen: {avg_screen}h, Avg mood: {avg_mood}/10. Latest risk: {latest.risk_level}."
+
+def get_workout_rec(mood):
+    """Pick a workout dict based on mood."""
+    mood = mood.lower()
+    if mood in ['sad', 'anxious', 'depressed']:
+        return WORKOUTS.get('meditation', WORKOUTS.get('breathing'))
+    elif mood in ['bored', 'tired']:
+        return WORKOUTS.get('hiit', WORKOUTS.get('walk'))
+    return WORKOUTS.get('meditation', WORKOUTS.get('walk'))

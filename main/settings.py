@@ -77,4 +77,4 @@ LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/'
 
 # Remove API key or keep empty safely
-GEMINI_API_KEY = 'SAIzaSyAAgX8fFdF1ktC17xXIBZP0pGR74nLN6mY'
+GEMINI_API_KEY = 'AIzaSyBBXtYpvoMfGk7yl87WE26Gh1aacNQfvXA'
